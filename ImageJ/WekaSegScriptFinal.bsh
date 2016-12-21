@@ -1,0 +1,129 @@
+//@String input_model
+//@String input_dir
+//@String output_dir
+
+import ij.IJ;
+import ij.ImagePlus;
+import mpicbg.ij.util.Filter;
+import trainableSegmentation.*;
+import ij.measure.ResultsTable; 
+import ij.measure.Measurements; 
+import ij.plugin.filter.ParticleAnalyzer; 
+
+show_tmp_res = false;
+
+//Reads all files in the input directory
+//It assumes that it ONLY contains histology images (or images). If there is something else
+// it will crash
+folder = new File(input_dir);
+File[] files = folder.listFiles();
+
+int counter = 1;
+for (File file : files) {
+    //vars.put("file_" + counter, file.getAbsolutePath());
+    
+    input_file = file.getAbsolutePath();
+    
+    output_file1 = output_dir + "/results" + file.getName() + "_1.csv";
+	output_file2 = output_dir + "/results" + file.getName() + "_2.csv";
+	output_file3 = output_dir + "/results" + file.getName() + "_3.csv";
+    
+	input  = IJ.openImage(input_file);
+	
+	//scale down
+	input = new ImagePlus( "downsampled by roz", Filter.scale( input.getProcessor(), 0.5f ) );
+	
+	// Set scale
+	IJ.run(input, "Set Scale...", "distance=0.78 known=1 unit=um");
+	
+	// create Weka Segmentation object
+	segmentator = new WekaSegmentation( input );
+	
+	// load classifier from file
+	segmentator.loadClassifier( input_model );
+	
+	// get result (labels float image)
+	seg_result = segmentator.applyClassifier( input );
+	
+	// get result (labels float image)
+	seg_result2 = seg_result.duplicate();
+	
+	// get result (labels float image)
+	seg_result3 = seg_result.duplicate();
+	
+	//IJ.run("Threshold...") microfil
+	IJ.setThreshold(seg_result, 1.0000, 1.0000);
+	Prefs.blackBackground = true;
+	IJ.run(seg_result, "Convert to Mask", "");
+	
+	//Analyse particles Microfil
+	tempResults = new ResultsTable(); 
+	pa = new ParticleAnalyzer( ParticleAnalyzer.SHOW_OVERLAY_MASKS, // show results 
+	                            Measurements.AREA, // measure area 
+	                            tempResults, // our temporary ResultsTable 
+	                            60.84, // minimum size 
+	                            1000000, // maximum size 
+	                            0.18, //min circ
+	                            1.00 //max circ
+	                          ); 
+	pa.analyze(seg_result); 
+	if ( show_tmp_res ) {
+		seg_result.show();
+		tempResults.show("Temporary Results in a different table");
+	}
+
+	IJ.run("Set Measurements...", "area limit redirect=None decimal=2");
+	IJ.run(seg_result, "Measure", "");
+	
+	//Save results
+	tempResults.save(output_file1);
+	
+	
+	//IJ.run("Threshold...") Blood
+	IJ.setThreshold(seg_result2, 2.0000, 2.0000);
+	Prefs.blackBackground = true;
+	IJ.run(seg_result2, "Convert to Mask", "");
+	
+	///Analyse particles Blood
+	tempResults2 = new ResultsTable(); 
+	pa = new ParticleAnalyzer( ParticleAnalyzer.SHOW_OVERLAY_MASKS, // show results 
+	                            Measurements.AREA, // measure area 
+	                            tempResults2, // our temporary ResultsTable 
+	                            30.00, // minimum size 
+	                            1000000, // maximum size 
+	                            0.18, //min circ
+	                            1.00 //max circ
+	                          ); 
+	pa.analyze(seg_result2); 
+	if ( show_tmp_res ) {
+		seg_result2.show();
+		tempResults2.show("Temporary Results in a different table");
+	}
+
+	IJ.run("Set Measurements...", "area limit redirect=None decimal=2");
+	IJ.run(seg_result2, "Measure", "");
+	
+	//Saveresults
+	tempResults2.save(output_file2);
+	
+	//IJ.run("Threshold...") Background
+	IJ.setThreshold(seg_result3, 0.0000, 0.0000);
+	Prefs.blackBackground = true;
+	IJ.run(seg_result3, "Convert to Mask", "");
+	
+	///Measure Background
+	IJ.run("Set Measurements...", "area limit redirect=None decimal=2");
+	IJ.run(seg_result3, "Measure", "");
+	tempResults3 = ResultsTable.getResultsTable();
+	if ( show_tmp_res ) {
+		seg_result3.show();
+		tempResults3.show("Temporary Results in a different table");
+	}
+
+	//Saveresults
+	tempResults3.save(output_file3);
+	IJ.selectWindow("Results"); 
+    IJ.run("Close");
+		counter++;
+}
+print("Done!");

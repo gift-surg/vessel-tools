@@ -1,0 +1,105 @@
+//@String input_file
+//@String output_file
+//@String output_statsOne
+//@String output_statsTwo
+
+import ij.IJ;
+import ij.ImagePlus;
+import sc.fiji.analyzeSkeleton.*;
+import ij.measure.ResultsTable; 
+import ij.measure.Measurements; 
+import java.lang.Math.*;
+
+//Headers for results sheet
+head = new String[] {"Skeleton", "# Branches","# Junctions", "# End-point voxels",
+						 "# Junction voxels","# Slab voxels","Average Branch Length", 
+						 "# Triple points", "# Quadruple points", "Maximum Branch Length",
+						"Longest Shortest Path", "spx", "spy", "spz"};
+extra_head = new String[] {"Branch", "Skeleton ID",  "Branch length","V1 x", "V1 y",
+							"V1 z","V2 x","V2 y", "V2 z", "Euclidean distance",
+							"running average length", "average intensity (inner 3rd)", "average intensity"};
+
+//Read image
+input  = IJ.openImage(input_file);
+new_imp = IJ.getImage();
+
+// Skeletonize the image
+IJ.run(new_imp, "Skeletonize (2D/3D)", "");
+
+//Save the skeletonised image
+save_cmd = "save=" + output_file;
+IJ.run(new_imp,"MHD/MHA ...", save_cmd);
+
+//Now the analysis of the centerline
+skel = new AnalyzeSkeleton_();
+//skel.calculateShortestPath = true;
+skel.setup("", new_imp);
+
+
+//Analysis in silent mode
+//run(int pruneIndex, boolean pruneEnds, boolean shortPath, ImagePlus origIP, boolean silent, boolean verbose)
+skelResult = skel.run(AnalyzeSkeleton_.NONE, false, true, null, true, true);
+
+//Now, processing the results following the spirit of AnalyzeSkeleton
+global_rt = new ResultsTable();
+numTrees = skelResult.getNumOfTrees();
+for (i = 0; i < numTrees; i++) {
+	global_rt.incrementCounter();
+	global_rt.addValue(head[ 1], (skelResult.getBranches())[i]);        
+	global_rt.addValue(head[ 2], (skelResult.getJunctions())[i]);
+	global_rt.addValue(head[ 3], (skelResult.getEndPoints())[i]);
+	global_rt.addValue(head[ 4], (skelResult.getJunctionVoxels())[i]);
+	global_rt.addValue(head[ 5], (skelResult.getSlabs())[i]);
+	global_rt.addValue(head[ 6], (skelResult.getAverageBranchLength())[i]);
+	global_rt.addValue(head[ 7], (skelResult.getTriples())[i]);
+	global_rt.addValue(head[ 8], (skelResult.getQuadruples())[i]);
+	global_rt.addValue(head[ 9], (skelResult.getMaximumBranchLength())[i]);
+
+	shortestPaths = skelResult.getShortestPathList();
+	if (shortestPaths != null){
+		global_rt.addValue(head[10], (skelResult.getShortestPathList()).get(i));
+		global_rt.addValue(head[11], (skelResult.getSpStartPosition())[i][0]);
+		global_rt.addValue(head[12], (skelResult.getSpStartPosition())[i][1]);
+		global_rt.addValue(head[13], (skelResult.getSpStartPosition())[i][2]);
+	}
+}
+
+print("Saved global statistics");
+global_rt.save(output_statsOne);
+
+//Now doing the per branch statistics
+height = new_imp.getCalibration().pixelHeight;
+width = new_imp.getCalibration().pixelWidth;
+depth = new_imp.getCalibration().pixelDepth;
+extra_rt = new ResultsTable();
+for (i = 0; i < numTrees; i++) {
+	listEdges = ((skelResult.getGraph())[i]).getEdges();
+	for (e : listEdges)
+	{
+		point1 = e.getV1().getPoints().get(0);
+		point2 = e.getV2().getPoints().get(0);
+		dist = Math.sqrt(  Math.pow( (point1.x - point2.x) * width, 2) 
+				          + Math.pow( (point1.y - point2.y) * height, 2) 
+				          + Math.pow( (point1.z - point2.z) * depth, 2));
+				          
+		extra_rt.incrementCounter();
+		extra_rt.addValue(extra_head[ 1], i+1);
+		extra_rt.addValue(extra_head[ 2], e.getLength());
+		extra_rt.addValue(extra_head[ 3], e.getV1().getPoints().get(0).x * width);
+		extra_rt.addValue(extra_head[ 4], e.getV1().getPoints().get(0).y * height);
+		extra_rt.addValue(extra_head[ 5], e.getV1().getPoints().get(0).z * depth);
+		extra_rt.addValue(extra_head[ 6], e.getV2().getPoints().get(0).x * width);
+		extra_rt.addValue(extra_head[ 7], e.getV2().getPoints().get(0).y * height);
+		extra_rt.addValue(extra_head[ 8], e.getV2().getPoints().get(0).z * depth);
+		extra_rt.addValue(extra_head[ 9],  dist);
+		extra_rt.addValue(extra_head[10], e.getLength_ra());
+		extra_rt.addValue(extra_head[11], e.getColor3rd());
+		extra_rt.addValue(extra_head[12], e.getColor());
+	}
+}
+extra_rt.save(output_statsTwo);
+print("Saved per branch statistics");
+
+print("Centerline is done!");
+IJ.run("Close All");
+exit();

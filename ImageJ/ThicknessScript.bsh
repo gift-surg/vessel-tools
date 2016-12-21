@@ -1,0 +1,35 @@
+//@String input_file
+//@int threshold
+//@String output_file
+
+import ij.IJ;
+import ij.ImageStack;
+import ij.ImagePlus;
+import sc.fiji.localThickness.*;
+
+//Very easy read image
+input  = IJ.openImage(input_file);
+
+//Initialise LocalThickness class and set it up
+thickness = new LocalThicknessWrapper(  );
+thickness.threshold = threshold;
+thickness.calibratePixels = false;
+thickness.run(null);
+
+//Get the result
+results =  thickness.getResultImage();
+//IJ.run("Local Thickness to Cleaned-Up Local Thickness");
+
+thicknessCleaningPlugin = new Clean_Up_Local_Thickness();
+thicknessCleaningPlugin.setup("", results);
+thicknessCleaningPlugin.run(null);
+results = thicknessCleaningPlugin.getResultImage();
+
+//And save it
+save_cmd = "save=" + output_file;
+IJ.run(results,"MHD/MHA ...", save_cmd);
+
+print("Thickness is done!");
+IJ.run("Close All");
+results.close();
+exit();
