@@ -13,3 +13,7 @@
     ADD_EXECUTABLE(cardiovasc_changetype cardiovasc_changetype.cpp)
         TARGET_LINK_LIBRARIES(cardiovasc_changetype ${ROZ_ITK_LIB})
     INSTALL_TARGETS(/bin cardiovasc_changetype)
+
+    ADD_EXECUTABLE(cardiovasc_subsample cardiovasc_subsample.cpp)
+        TARGET_LINK_LIBRARIES(cardiovasc_subsample ${ROZ_ITK_LIB})
+    INSTALL_TARGETS(/bin cardiovasc_subsample)

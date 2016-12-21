@@ -62,12 +62,12 @@ int main( int argc, char * argv[] )
         else if(strcmp(argv[i], "-b") == 0)
         {
             bck=atoi(argv[++i]);
-            std::cout << "Set --b=" << outputFileName << std::endl;
+            std::cout << "Set --b=" << bck << std::endl;
         }
         else if(strcmp(argv[i], "-f") == 0)
         {
             fore=atoi(argv[++i]);
-            std::cout << "Set --f=" << outputFileName << std::endl;
+            std::cout << "Set --f=" << fore << std::endl;
         }
         else
         {
@@ -75,6 +75,13 @@ int main( int argc, char * argv[] )
             Usage(argv[0]);
             return EXIT_FAILURE;
         }
+    }
+
+    // Validate command line args
+    if (image.length() == 0 || map.length() == 0)
+    {
+      Usage(argv[0]);
+      return EXIT_FAILURE;
     }
 
     typedef itk::Image<unsigned char,3> LabelImageType;
