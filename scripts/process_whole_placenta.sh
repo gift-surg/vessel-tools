@@ -32,7 +32,7 @@ do
     out_skeleton=${data}/part${p}_centerline.mhd    #Resulting centerline
     general_stats_file=${data}/part${p}_stats_one.xls   #Global statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
     detailed_stats_file=${data}/part${p}_stats_two.xls  #Detailed statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
-    echo ${program} "'input_file=\""${input}"\", output_file=\""${out_skeleton}"\", output_statsOne=\""${general_stats_file}"\", output_statsTwo=\""${detailed_stats_file}"\"'"
+    eval ${program} "'input_file=\""${input}"\", output_file=\""${out_skeleton}"\", output_statsOne=\""${general_stats_file}"\", output_statsTwo=\""${detailed_stats_file}"\"'"
 done
 
 #3- Thickness estimation
@@ -47,12 +47,12 @@ for p in ${parts}
 do
     input=${data}/part${p}_segmented.mhd
     thick_img=${data}/part${p}_thickvolume.mhd
-    echo ${program} "'input_file=\""${input}"\", threshold="${threshold}, "output_file=\""${thick_img}"\"'"
+    eval ${program} "'input_file=\""${input}"\", threshold="${threshold}, "output_file=\""${thick_img}"\"'"
 
 done
-echo "****************************** ImageJ commands finish here ****************************************"
-echo "This script can not go further from here if you don't copy-paste those commands in the command line. So, I am exiting here!"
-echo "Run process_whole_placenta_p2 part 2 for that matter"
+# echo "****************************** ImageJ commands finish here ****************************************"
+# echo "This script can not go further from here if you don't copy-paste those commands in the command line. So, I am exiting here!"
+echo "Run process_whole_placenta_p2 part 2"
 
 
 

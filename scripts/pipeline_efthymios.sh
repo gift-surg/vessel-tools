@@ -82,16 +82,16 @@ program="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64"
 script="\"/home/mzuluaga/Code/source/roz_tools/ImageJ/ThicknessScript.bsh\""
 count=0
 
-echo "****************************** ImageJ commands starts here ****************************************"
+# echo "****************************** ImageJ commands starts here ****************************************"
 while [ ${count} -lt ${total_vols} ]
 do
     thick_img="/home/mzuluaga/data/placenta/placenta_out/thick_volume_"${count}".mhd"
-    echo ${program} --ij2 --run  ${script} "'input_file=\""${out_img}_${count}.mhd"\", threshold="${threshold}, "output_file=\""${thick_img}"\"'"
+    eval ${program} --ij2 --run  ${script} "'input_file=\""${out_img}_${count}.mhd"\", threshold="${threshold}, "output_file=\""${thick_img}"\"'"
     let count=${count}+1
 done
-echo "****************************** ImageJ commands finish here ****************************************"
-echo "This script can not go further from here if you don't copy-paste those commands in the command line. So, I am exiting here!"
-echo "Run pipeline_efthymios part 2 for that matter"
+# echo "****************************** ImageJ commands finish here ****************************************"
+# echo "This script can not go further from here if you don't copy-paste those commands in the command line. So, I am exiting here!"
+echo "Run pipeline_efthymios part 2"
 exit 
 
 #From her it does not run at the moment because of the exit command. However, if the ImageJ problem is fixed, the exit
