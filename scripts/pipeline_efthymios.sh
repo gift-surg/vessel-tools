@@ -74,7 +74,7 @@ done
 total_vols=${count}
 
 #5- Run thickness from ImageJ
-#IMPORTANT! It has to be run witouth headless mode. Reason for this is that the Thickness plugin crashes, at least for Linux
+#IMPORTANT! It has to be run without headless mode. Reason for this is that the Thickness plugin crashes, at least for Linux
 #WARNING! Currently, at least for linux, ImageJ fails to be launched from a script so, this bit of script just prints out
 #the commands that should be executed. Once printed in the terminal, they should be copied and pasted in the command line
 #for execution.  
@@ -82,20 +82,12 @@ program="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64"
 script="\"/home/mzuluaga/Code/source/roz_tools/ImageJ/ThicknessScript.bsh\""
 count=0
 
-# echo "****************************** ImageJ commands starts here ****************************************"
 while [ ${count} -lt ${total_vols} ]
 do
     thick_img="/home/mzuluaga/data/placenta/placenta_out/thick_volume_"${count}".mhd"
     eval ${program} --ij2 --run  ${script} "'input_file=\""${out_img}_${count}.mhd"\", threshold="${threshold}, "output_file=\""${thick_img}"\"'"
     let count=${count}+1
 done
-# echo "****************************** ImageJ commands finish here ****************************************"
-# echo "This script can not go further from here if you don't copy-paste those commands in the command line. So, I am exiting here!"
-echo "Run pipeline_efthymios part 2"
-exit 
-
-#From her it does not run at the moment because of the exit command. However, if the ImageJ problem is fixed, the exit
-# and the echoe's can be remove and all can be ran in one go.
 
 #6- Run statistics
 #Computes some basic statistics over the thickness image and displays them
@@ -169,3 +161,4 @@ do
 done
 
 rm -rf ${out_dir}/result_segmented2.mhd
+
