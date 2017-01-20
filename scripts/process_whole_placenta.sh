@@ -22,9 +22,6 @@ done
 
 #2- Extraction of the centerline (per subvolume)
 #Important: This ImageJ plugin is strongly connected to the GUI. It fails if ran in headless mode (gets a Java exception, headless exception)
-#WARNING! Currently, at least for linux, ImageJ fails to be launched from a script so, this bit of script just prints out
-#the commands that should be executed. Once printed in the terminal, they should be copied and pasted in the command line
-#for execution.  
 program="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64 --ij2 --run /home/mzuluaga/Code/source/roz_tools/ImageJ/SkeletonScript.bsh" #ImageJ + options + script
 for p in ${parts}
 do
@@ -37,9 +34,6 @@ done
 
 #3- Thickness estimation
 #Important: This ImageJ plugin is strongly connected to the GUI. It fails if ran in headless mode (gets a Java exception, headless exception)
-#WARNING! Currently, at least for linux, ImageJ fails to be launched from a script so, this bit of script just prints out
-#the commands that should be executed. Once printed in the terminal, they should be copied and pasted in the command line
-#for execution.  
 program="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64 --ij2 --run /home/mzuluaga/Code/source/roz_tools/ImageJ/ThicknessScript.bsh"
 script="'/home/mzuluaga/Code/source/roz_tools/ImageJ/ThicknessScript.bsh'"
 threshold=254 #This parameter could be also be given as an input

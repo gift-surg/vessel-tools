@@ -75,9 +75,6 @@ total_vols=${count}
 
 #5- Run thickness from ImageJ
 #IMPORTANT! It has to be run without headless mode. Reason for this is that the Thickness plugin crashes, at least for Linux
-#WARNING! Currently, at least for linux, ImageJ fails to be launched from a script so, this bit of script just prints out
-#the commands that should be executed. Once printed in the terminal, they should be copied and pasted in the command line
-#for execution.  
 program="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64"
 script="\"/home/mzuluaga/Code/source/roz_tools/ImageJ/ThicknessScript.bsh\""
 count=0
