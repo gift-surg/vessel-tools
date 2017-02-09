@@ -51,3 +51,32 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     return block_ranges
 
 
+def load_mhd_header(filename):
+    """Return a dict containing mhd file metadata"""
+
+    metadata = {}
+
+    tag_set = []
+    tag_set.extend(['ObjectType', 'NDims', 'DimSize', 'ElementType', 'ElementDataFile', 'ElementNumberOfChannels'])
+    tag_set.extend(['BinaryData', 'BinaryDataByteOrderMSB', 'CompressedData', 'CompressedDataSize'])
+    tag_set.extend(['Offset', 'CenterOfRotation', 'AnatomicalOrientation', 'ElementSpacing', 'TransformMatrix'])
+    tag_set.extend(['Comment', 'SeriesDescription', 'AcquisitionDate', 'AcquisitionTime', 'StudyDate', 'StudyTime'])
+
+    with open(filename) as header_file:
+        for line in header_file:
+            (key, val) = [x.strip() for x in line.split("=")]
+            if key in ['ElementSpacing', 'Offset', 'CenterOfRotation', 'TransformMatrix']:
+                val = [float(s) for s in val.split()]
+            elif key in ['NDims', 'ElementNumberOfChannels']:
+                val = int(val)
+            elif key in ['DimSize']:
+                val = [int(s) for s in val.split()]
+            elif key in ['BinaryData', 'BinaryDataByteOrderMSB', 'CompressedData']:
+                if val.lower() == "true":
+                    val = True
+                else:
+                    val = False
+
+            metadata[key] = val
+
+    return metadata
