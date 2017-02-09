@@ -2,7 +2,8 @@
 
 from context import tools
 from tools import file_splitter
-from tools.file_splitter import get_number_of_blocks, get_block_coordinate_range
+from tools.file_splitter import get_number_of_blocks, get_block_coordinate_range, get_image_block_ranges, \
+    get_suggested_block_size
 
 import unittest
 
@@ -23,6 +24,22 @@ class TestFileSplitter(unittest.TestCase):
         self.assertEqual(get_block_coordinate_range(1, 5, 1, 10), (4, 9))
         self.assertEqual(get_block_coordinate_range(0, 5, 1, 9), (0, 5))
         self.assertEqual(get_block_coordinate_range(1, 5, 1, 9), (4, 8))
+
+    def test_get_suggested_block_size(self):
+        self.assertEqual(get_suggested_block_size([5, 5, 5], [2, 2, 2]), [3, 3, 3])
+        self.assertEqual(get_suggested_block_size([5, 5, 5], [2, 3, 4]), [3, 2, 2])
+        self.assertEqual(get_suggested_block_size([99, 100, 101], [3, 4, 5]), [33, 25, 21])
+
+    def test_get_image_block_ranges(self):
+        self.assertEqual(get_image_block_ranges([5, 5, 5], [4, 5, 6], [0, 0, 0]),
+                         [[0, 2, 0, 4, 0, 4], [3, 4, 0, 4, 0, 4]])
+        self.assertEqual(get_image_block_ranges([5, 5, 5], [4, 5, 6], [2, 2, 2]),
+                         [[0, 4, 0, 4, 0, 4], [1, 4, 0, 4, 0, 4]])
+        self.assertEqual(get_image_block_ranges([999, 1000, 1001], [500, 500, 500], [0, 0, 0]),
+                         [[0, 499, 0, 499, 0, 333], [0, 499, 0, 499, 334, 667], [0, 499, 0, 499, 668, 1000],
+                         [0, 499, 500, 999, 0, 333], [0, 499, 500, 999, 334, 667], [0, 499, 500, 999, 668, 1000],
+                         [500, 998, 0, 499, 0, 333], [500, 998, 0, 499, 334, 667], [500, 998, 0, 499, 668, 1000],
+                         [500, 998, 500, 999, 0, 333], [500, 998, 500, 999, 334, 667], [500, 998, 500, 999, 668, 1000]])
 
 
 if __name__ == '__main__':
