@@ -44,10 +44,9 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     for i in range(number_of_blocks[0]):
         for j in range(number_of_blocks[1]):
             for k in range(number_of_blocks[2]):
-                indices = [i, j, k]
                 block_ranges.append(
                     [get_block_coordinate_range(index, block, overlap, size) for index, block, overlap, size in
-                     zip(indices, suggested_block_size, overlap_size, image_size)])
+                     zip([i, j, k], suggested_block_size, overlap_size, image_size)])
 
     return block_ranges
 
