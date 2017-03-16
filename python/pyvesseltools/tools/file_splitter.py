@@ -50,9 +50,9 @@ def get_suggested_block_size(image_size, number_of_blocks):
 
 
 def get_image_block_ranges(image_size, max_block_size, overlap_size):
-    """Returns a list of ranges, where each recommended block size (a list of the number of blocks in each dimension) to allow the specified
-    image_size to be split into the specified number of blocks in each dimension, with each block being roughly
-    equal in size"""
+    """Returns a list of ranges, where each recommended block size (a list of the number of blocks in each dimension)
+    to allow the specified image_size to be split into the specified number of blocks in each dimension,
+    with each block being roughly equal in size """
 
     number_of_blocks = get_number_of_blocks(image_size, max_block_size)
     suggested_block_size = get_suggested_block_size(image_size, number_of_blocks)
@@ -133,3 +133,94 @@ def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
         offset_multiple *= image_length
     return offset
 
+
+def read_image_stream(file_handle, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
+    """Reads a line of image data from a binary file at the specified image location"""
+
+    offset = get_linear_byte_offset(image_size, bytes_per_voxel, start_coords)
+    file_handle.seek(offset)
+    return file_handle.read(num_voxels_to_read*bytes_per_voxel)
+
+
+def get_bytes_per_voxel(element_type):
+    """Returns number of bytes required to store one voxel for the given metaIO ElementType"""
+
+    switcher = {
+        'MET_CHAR': 1,
+        'MET_UCHAR': 1,
+        'MET_SHORT': 2,
+        'MET_USHORT': 2,
+        'MET_INT': 4,
+        'MET_UINT': 4,
+        'MET_FLOAT': 4,
+        'MET_DOUBLE': 8,
+    }
+    return switcher.get(element_type, 2)
+
+
+def create_file_from_range(filename, range_coords, file_handle_in, metadata):
+    """Creates a subimage by reading the specified range of data from the file handle"""
+
+    i_range = range_coords[0]
+    j_range = range_coords[1]
+    k_range = range_coords[2]
+    image_segment_offset = [i_range[0], j_range[0], k_range[0]]
+    image_segment_size = [1 + i_range[1] - i_range[0], 1 + j_range[1] - j_range[0], 1 + k_range[1] - k_range[0]]
+
+    image_size = metadata["DimSize"]
+    bytes_per_voxel = get_bytes_per_voxel(metadata["ElementType"])
+    filename_header = filename + '.mhd'
+
+    metadata_reduced = metadata
+    metadata_reduced.DimSize = image_segment_size
+    metadata_reduced.Origin = image_segment_offset
+    save_mhd_header(filename_header, metadata_reduced)
+
+    filename_raw = filename + '.mhd'
+
+    with open(filename_raw, 'wb') as file_out:
+        for k in k_range:
+            for j in j_range:
+                i = i_range[0]
+                start_coords = [i, j, k]
+                num_voxels_to_read = image_segment_size[2]
+
+                image_line = read_image_stream(file_handle_in, image_size, bytes_per_voxel, start_coords,
+                                               num_voxels_to_read)
+                file_out.write(image_line)
+
+
+def split_file(filename):
+    """Saves the specified image file as a number of smaller files"""
+
+    header = load_mhd_header(filename)
+    filename_raw = header["ElementDataFile"]
+    read_and_split_file(HugeFileReader(filename_raw))
+
+
+def read_and_split_file(header, file_reader):
+    """Saves the specified image file handle as a number of smaller files"""
+
+    max_block_size = 500
+    overlap_size = 10
+    image_size = header["DimSize"]
+    ranges = get_image_block_ranges(image_size, max_block_size, overlap_size)
+
+    with file_reader as file_in:
+        filename_out_base = 'test_out'
+        index = 0
+        for subimage_range in ranges:
+            filename_subimage_out = filename_out_base + str(index)
+            create_file_from_range(filename_subimage_out, subimage_range, file_in, header)
+
+
+class HugeFileReader:
+    def __init__(self, name):
+        self.filename = name
+
+    def __enter__(self):
+        self.file_handle = open(self.filename, 'rb')
+        return self.file_handle
+
+    def __exit__(self, type, value, traceback):
+        self.file_handle.close()

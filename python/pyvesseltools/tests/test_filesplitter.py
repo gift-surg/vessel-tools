@@ -1,11 +1,32 @@
 # -*- coding: utf-8 -*-
+import math
 
 from context import tools
 from tools import file_splitter
+from nose_parameterized import parameterized
 from tools.file_splitter import get_number_of_blocks, get_block_coordinate_range, get_image_block_ranges, \
-    get_suggested_block_size, get_linear_byte_offset
+    get_suggested_block_size, get_linear_byte_offset, get_bytes_per_voxel, read_image_stream
 
 import unittest
+
+
+class FakeFile:
+    def __init__(self, data, bytes_per_voxel):
+        self.data = data
+        self.bytes_per_voxel = bytes_per_voxel
+        self.data_pointer = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def seek(self, num_bytes):
+        self.data_pointer = math.floor(num_bytes/self.bytes_per_voxel)
+
+    def read(self, num_bytes):
+        return self.data[slice(self.data_pointer, self.data_pointer + math.floor(num_bytes/self.bytes_per_voxel))]
 
 
 class TestFileSplitter(unittest.TestCase):
@@ -52,5 +73,29 @@ class TestFileSplitter(unittest.TestCase):
         self.assertEqual(get_linear_byte_offset([11, 22, 33], 4, [0, 2, 3]), (0+2*11+3*11*22)*4)
         self.assertEqual(get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
 
+    def test_get_bytes_per_voxel(self):
+        self.assertEquals(get_bytes_per_voxel('MET_CHAR'), 1)
+        self.assertEquals(get_bytes_per_voxel('MET_UCHAR'), 1)
+        self.assertEquals(get_bytes_per_voxel('MET_INT'), 4)
+        self.assertEquals(get_bytes_per_voxel('MET_UINT'), 4)
+        self.assertEquals(get_bytes_per_voxel('MET_SHORT'), 2)
+        self.assertEquals(get_bytes_per_voxel('MET_USHORT'), 2)
+        self.assertEquals(get_bytes_per_voxel('MET_FLOAT'), 4)
+        self.assertEquals(get_bytes_per_voxel('MET_DOUBLE'), 8)
+
+    @parameterized.expand([
+        [[2, 3, 8], 4, [1, 2, 3], 2],
+        [[101, 222, 4], 4, [1, 1, 1], 10],
+        [[154, 141, 183], 4, [13, 12, 11], 30],
+    ])
+    def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
+        fake_file = FakeFile(range(0, image_size[0]*image_size[1]*image_size[2]-1), bytes_per_voxel)
+        start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
+        end = start + num_voxels_to_read
+        expected = range(start, end)
+        self.assertEquals(read_image_stream(fake_file, image_size, bytes_per_voxel, start_coords, num_voxels_to_read),
+                          expected)
+
 if __name__ == '__main__':
     unittest.main()
+
