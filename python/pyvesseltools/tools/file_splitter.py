@@ -120,3 +120,16 @@ def save_mhd_header(filename, metadata):
     f = open(filename, 'w')
     f.write(header)
     f.close()
+
+
+def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
+    """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
+    point at the given coordinates """
+
+    offset = 0
+    offset_multiple = bytes_per_voxel
+    for coord, image_length in zip(start_coords, image_size):
+        offset += coord*offset_multiple
+        offset_multiple *= image_length
+    return offset
+
