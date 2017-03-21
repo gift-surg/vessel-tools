@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import math
 
-from context import tools
-from tools import file_splitter
 from nose_parameterized import parameterized
 from tools.file_splitter import get_number_of_blocks, get_block_coordinate_range, get_image_block_ranges, \
     get_suggested_block_size, get_linear_byte_offset, get_bytes_per_voxel, read_image_stream

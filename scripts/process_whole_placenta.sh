@@ -95,7 +95,7 @@ done
 
 echo "***************************************** statistics are done ***************************************************"
 echo "By now you should know what you wanna keep or not but, still the rest of the script will ran with some defaults"
-echo "Re run with your specific values (might be differnt for each subvolume!)"
+echo "Re run with your specific values (might be different for each subvolume!)"
 
 #6- Prune out smaller structures
 for p in ${parts}

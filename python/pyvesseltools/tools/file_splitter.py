@@ -7,6 +7,7 @@
 
 from __future__ import division, print_function
 
+import argparse
 import os
 from math import ceil
 from collections import OrderedDict
@@ -170,7 +171,7 @@ def get_bytes_per_voxel(element_type):
     return switcher.get(element_type, 2)
 
 
-def create_file_from_range(output_path, filename, range_coords, file_handle_in, metadata):
+def create_file_from_range(output_filename, range_coords, file_handle_in, metadata):
     """Creates a subimage by reading the specified range of data from the file handle"""
 
     i_range = range_coords[0]
@@ -181,18 +182,16 @@ def create_file_from_range(output_path, filename, range_coords, file_handle_in, 
 
     image_size = metadata["DimSize"]
     bytes_per_voxel = get_bytes_per_voxel(metadata["ElementType"])
-    filename_header = filename + '.mhd'
-    full_filename_header = os.path.join(output_path, filename_header)
-    filename_raw = filename + '.raw'
-    full_filename_raw = os.path.join(output_path, filename_raw)
+    filename_header = output_filename + '.mhd'
+    filename_raw = output_filename + '.raw'
 
     metadata_reduced = metadata
     metadata_reduced["DimSize"] = image_segment_size
     metadata_reduced["Origin"] = image_segment_offset
     metadata_reduced["ElementDataFile"] = filename_raw
-    save_mhd_header(full_filename_header, metadata_reduced)
+    save_mhd_header(filename_header, metadata_reduced)
 
-    with open(full_filename_raw, 'wb') as file_out:
+    with open(filename_raw, 'wb') as file_out:
         for k in range(k_range[0], 1 + k_range[1]):
             for j in range(j_range[0], 1 + j_range[1]):
                 i = i_range[0]
@@ -206,30 +205,22 @@ def create_file_from_range(output_path, filename, range_coords, file_handle_in, 
                     raise ValueError('Unexpected number of bytes written')
 
 
-def split_file(filename):
+def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
     """Saves the specified image file as a number of smaller files"""
 
-    pathname = os.path.dirname(filename)
-    header = load_mhd_header(filename)
-    local_filename_raw = header["ElementDataFile"]
-    filename_raw = os.path.join(pathname, local_filename_raw)
-    read_and_split_file(header, HugeFileReader(filename_raw), pathname)
-
-
-def read_and_split_file(header, file_reader, output_path):
-    """Saves the specified image file handle as a number of smaller files"""
-
-    max_block_size = [500, 500, 500]
-    overlap_size = [10, 10, 10]
+    header = load_mhd_header(input_file)
+    relative_filename_raw = header["ElementDataFile"]
+    input_path = os.path.dirname(input_file)
+    filename_raw = os.path.join(input_path, relative_filename_raw)
+    file_reader = HugeFileReader(filename_raw)
     image_size = header["DimSize"]
-    ranges = get_image_block_ranges(image_size, max_block_size, overlap_size)
-    filename_out_base = os.path.splitext(header["ElementDataFile"])[0]
+    ranges = get_image_block_ranges(image_size, max_block_size_voxels, overlap_size_voxels)
 
     with file_reader as file_in:
         index = 0
         for subimage_range in ranges:
-            filename_subimage_out = filename_out_base + "_" + str(index)
-            create_file_from_range(output_path, filename_subimage_out, subimage_range, file_in, header)
+            output_filename = filename_out_base + "_" + str(index)
+            create_file_from_range(output_filename, subimage_range, file_in, header)
             index += 1
 
 
@@ -243,3 +234,30 @@ class HugeFileReader:
 
     def __exit__(self, type, value, traceback):
         self.file_handle.close()
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Splits a large MetaIO (.mhd) file into multiple parts with overlap')
+
+    parser.add_argument("-filename", "--f", required=True, default="_no_filename_specified", help="Name of file to "
+                                                                                                  "split")
+    parser.add_argument("-out", "--o", required=False, default="_no_filename_specified", help="Prefix of output files")
+    parser.add_argument("-overlap", "--l", required=False, default="50", help="Number of voxels to overlap between "
+                                                                              "outputs")
+    parser.add_argument("-max", "--m", required=False, default="500", help="Maximum number of voxels in each dimension")
+
+    args = parser.parse_args()
+
+    if args.filename == '_no_filename_specified':
+        print('No filename specified')
+    else:
+        in_file = args.filename
+        if args.out == '_no_filename_specified':
+            out_file = filename_out_base = os.path.splitext(in_file) + "_split"
+        else:
+            out_file = args.out
+
+        max_voxels = [args.max, args.max, args.max]
+        overlap = [args.overlap, args.overlap, args.overlap]
+        split_file(in_file, out_file, max_voxels, overlap)
+
