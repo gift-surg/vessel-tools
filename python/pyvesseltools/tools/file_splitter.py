@@ -17,7 +17,7 @@ def get_number_of_blocks(image_size, max_block_size):
     """Returns a list containing the number of blocks in each dimension required to split the image into blocks that
     are subject to a maximum size limit"""
 
-    return [ceil(image_size_element / max_block_size_element) for image_size_element, max_block_size_element in
+    return [int(ceil(image_size_element / max_block_size_element)) for image_size_element, max_block_size_element in
             zip(image_size, max_block_size)]
 
 
@@ -34,7 +34,7 @@ def get_block_coordinate_range(block_number, block_size, overlap_size, image_siz
         min_coord = block_number * block_size - overlap_size
 
     # Compute the maximum coordinate of the block
-    max_coord = (block_number + 1) * block_size - 1 + overlap_size
+    max_coord = int((block_number + 1) * block_size - 1 + overlap_size)
     if max_coord >= image_size:
         max_coord = image_size - 1
 
@@ -208,13 +208,20 @@ def create_file_from_range(output_filename, range_coords, file_handle_in, metada
 def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
     """Saves the specified image file as a number of smaller files"""
 
+    if not filename_out_base:
+        filename_out_base = os.path.splitext(input_file)[0] + "_split"
+
     header = load_mhd_header(input_file)
     relative_filename_raw = header["ElementDataFile"]
     input_path = os.path.dirname(input_file)
     filename_raw = os.path.join(input_path, relative_filename_raw)
     file_reader = HugeFileReader(filename_raw)
     image_size = header["DimSize"]
-    ranges = get_image_block_ranges(image_size, max_block_size_voxels, overlap_size_voxels)
+    num_dims = header["NDims"]
+    max_block_size_voxels_array = convert_to_array(max_block_size_voxels, "block size", num_dims)
+    overlap_voxels_size_array = convert_to_array(overlap_size_voxels, "overlap size", num_dims)
+
+    ranges = get_image_block_ranges(image_size, max_block_size_voxels_array, overlap_voxels_size_array)
 
     with file_reader as file_in:
         index = 0
@@ -222,6 +229,17 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
             output_filename = filename_out_base + "_" + str(index)
             create_file_from_range(output_filename, subimage_range, file_in, header)
             index += 1
+
+
+def convert_to_array(scalar_or_list, parameter_name, num_dims):
+    if not isinstance(scalar_or_list, list):
+        array = [scalar_or_list] * num_dims
+    elif len(scalar_or_list) == num_dims:
+        array = scalar_or_list
+    else:
+        raise ValueError('The ' + parameter_name + 'parameter must be a scalar, or a list containing one entry for '
+                                                   'each image dimension')
+    return array
 
 
 class HugeFileReader:
@@ -236,28 +254,27 @@ class HugeFileReader:
         self.file_handle.close()
 
 
-if __name__ == '__main__':
+def main(args):
+
     parser = argparse.ArgumentParser(description='Splits a large MetaIO (.mhd) file into multiple parts with overlap')
 
-    parser.add_argument("-filename", "--f", required=True, default="_no_filename_specified", help="Name of file to "
-                                                                                                  "split")
-    parser.add_argument("-out", "--o", required=False, default="_no_filename_specified", help="Prefix of output files")
-    parser.add_argument("-overlap", "--l", required=False, default="50", help="Number of voxels to overlap between "
-                                                                              "outputs")
-    parser.add_argument("-max", "--m", required=False, default="500", help="Maximum number of voxels in each dimension")
+    parser.add_argument("-f", "--filename", required=True, default="_no_filename_specified",
+                        help="Name of file to split")
+    parser.add_argument("-o", "--out", required=False, default="", help="Prefix of output files")
+    parser.add_argument("-l", "--overlap", required=False, default="50", type=int,
+                        help="Number of voxels to overlap between outputs")
+    parser.add_argument("-m", "--max", required=False, default="500", type=int,
+                        help="Maximum number of voxels in each dimension")
 
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     if args.filename == '_no_filename_specified':
-        print('No filename specified')
+        raise ValueError('No filename was specified')
     else:
-        in_file = args.filename
-        if args.out == '_no_filename_specified':
-            out_file = filename_out_base = os.path.splitext(in_file) + "_split"
-        else:
-            out_file = args.out
+        assert sys.version_info >= (3, 0)
+        split_file(args.filename, args.out, args.max, args.overlap)
 
-        max_voxels = [args.max, args.max, args.max]
-        overlap = [args.overlap, args.overlap, args.overlap]
-        split_file(in_file, out_file, max_voxels, overlap)
 
+if __name__ == '__main__':
+    import sys
+    main(sys.argv[1:])
