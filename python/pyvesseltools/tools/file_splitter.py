@@ -9,8 +9,11 @@ from __future__ import division, print_function
 
 import argparse
 import os
+import sys
 from math import ceil
 from collections import OrderedDict
+
+from json_reader import write_json
 
 
 def get_number_of_blocks(image_size, max_block_size):
@@ -192,17 +195,27 @@ def create_file_from_range(output_filename, range_coords, file_handle_in, metada
     save_mhd_header(filename_header, metadata_reduced)
 
     with open(filename_raw, 'wb') as file_out:
-        for k in range(k_range[0], 1 + k_range[1]):
-            for j in range(j_range[0], 1 + j_range[1]):
-                i = i_range[0]
-                start_coords = [i, j, k]
-                num_voxels_to_read = image_segment_size[0]
+        write_file_range_to_file(bytes_per_voxel, file_handle_in, file_out, image_segment_size, image_size,
+                                 range_coords)
 
-                image_line = read_image_stream(file_handle_in, image_size, bytes_per_voxel, start_coords,
-                                               num_voxels_to_read)
-                bytes_written = file_out.write(image_line)
-                if bytes_written != len(image_line):
-                    raise ValueError('Unexpected number of bytes written')
+
+def write_file_range_to_file(bytes_per_voxel, file_handle_in, file_out, image_segment_size, image_size_in,
+                             range_coords_in):
+    i_range = range_coords_in[0]
+    j_range = range_coords_in[1]
+    k_range = range_coords_in[2]
+
+    for k in range(k_range[0], 1 + k_range[1]):
+        for j in range(j_range[0], 1 + j_range[1]):
+            i = i_range[0]
+            start_coords = [i, j, k]
+            num_voxels_to_read = image_segment_size[0]
+
+            image_line = read_image_stream(file_handle_in, image_size_in, bytes_per_voxel, start_coords,
+                                           num_voxels_to_read)
+            bytes_written = file_out.write(image_line)
+            if bytes_written != len(image_line):
+                raise ValueError('Unexpected number of bytes written')
 
 
 def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
@@ -223,12 +236,29 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
     ranges = get_image_block_ranges(image_size, max_block_size_voxels_array, overlap_voxels_size_array)
 
+    descriptor = {"appname": "GIFT-Surg split data", "version": "1.0"}
+
+    original_file_list = []
+    original_file_descriptor = {"filename": input_file, "ranges": [[0, image_size[0] - 1], [0, image_size[1] - 1],
+                                                                   [0, image_size[2] - 1]], "suffix": "", "index": 0}
+    original_file_list.append(original_file_descriptor)
+
+    split_file_list = []
     with file_reader as file_in:
         index = 0
         for subimage_range in ranges:
-            output_filename = filename_out_base + "_" + str(index)
+            suffix = "_" + str(index)
+            output_filename = filename_out_base + suffix
             create_file_from_range(output_filename, subimage_range, file_in, header)
+            file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
+            split_file_list.append(file_descriptor)
+
             index += 1
+
+    descriptor["split_files"] = split_file_list
+    descriptor["source_files"] = original_file_list
+    descriptor_output_filename = filename_out_base + "_info.gift"
+    write_json(descriptor_output_filename, descriptor)
 
 
 def convert_to_array(scalar_or_list, parameter_name, num_dims):
@@ -276,5 +306,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    import sys
     main(sys.argv[1:])
