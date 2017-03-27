@@ -33,15 +33,19 @@ def get_block_coordinate_range(block_number, block_size, overlap_size, image_siz
     # Compute the minimum coordinate of the block
     if block_number == 0:
         min_coord = 0
+        start_border = 0
     else:
         min_coord = block_number * block_size - overlap_size
+        start_border = overlap_size
 
     # Compute the maximum coordinate of the block
+    end_border = overlap_size
     max_coord = int((block_number + 1) * block_size - 1 + overlap_size)
     if max_coord >= image_size:
         max_coord = image_size - 1
+        end_border = 0
 
-    return min_coord, max_coord
+    return min_coord, max_coord, start_border, end_border
 
 
 def get_suggested_block_size(image_size, number_of_blocks):
