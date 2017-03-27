@@ -163,8 +163,6 @@ def create_file_from_range(output_filename, range_coords, file_in_streamer, meta
     image_segment_offset = [i_range[0], j_range[0], k_range[0]]
     image_segment_size = [1 + i_range[1] - i_range[0], 1 + j_range[1] - j_range[0], 1 + k_range[1] - k_range[0]]
 
-    image_size = metadata["DimSize"]
-    bytes_per_voxel = get_bytes_per_voxel(metadata["ElementType"])
     filename_header = output_filename + '.mhd'
     filename_raw = output_filename + '.raw'
 
@@ -175,24 +173,21 @@ def create_file_from_range(output_filename, range_coords, file_in_streamer, meta
     save_mhd_header(filename_header, metadata_reduced)
 
     with open(filename_raw, 'wb') as file_out:
-        write_file_range_to_file(file_in_streamer, file_out, image_segment_size, range_coords)
+        file_out_streamer = HugeFileOutStreamer(file_out)
+        write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords)
 
 
-def write_file_range_to_file(file_in_streamer, file_out, image_segment_size, range_coords_in):
+def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in):
     i_range = range_coords_in[0]
     j_range = range_coords_in[1]
     k_range = range_coords_in[2]
 
     for k in range(k_range[0], 1 + k_range[1]):
         for j in range(j_range[0], 1 + j_range[1]):
-            i = i_range[0]
-            start_coords = [i, j, k]
-            num_voxels_to_read = image_segment_size[0]
-
+            start_coords = [i_range[0], j, k]
+            num_voxels_to_read = i_range[1] + 1 - i_range[0]
             image_line = file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
-            bytes_written = file_out.write(image_line)
-            if bytes_written != len(image_line):
-                raise ValueError('Unexpected number of bytes written')
+            file_out_streamer.write_image_stream(image_line)
 
 
 def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
@@ -251,6 +246,17 @@ def convert_to_array(scalar_or_list, parameter_name, num_dims):
     return array
 
 
+class HugeFileOutStreamer:
+    def __init__(self, file_handle_object):
+        self._file_handle_object = file_handle_object
+
+    def write_image_stream(self, image_line):
+        bytes_written = self._file_handle_object.write(image_line)
+        if bytes_written != len(image_line):
+            raise ValueError('Unexpected number of bytes written')
+
+
+
 class HugeFileStreamer:
     def __init__(self, file_handle_object, image_size, bytes_per_voxel):
         self._bytes_per_voxel = bytes_per_voxel
@@ -275,8 +281,6 @@ class HugeFileStreamer:
             offset += coord*offset_multiple
             offset_multiple *= image_length
         return offset
-
-
 
 
 class HugeFileHandle:
