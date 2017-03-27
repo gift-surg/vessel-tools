@@ -175,12 +175,10 @@ def create_file_from_range(output_filename, range_coords, file_in_streamer, meta
     save_mhd_header(filename_header, metadata_reduced)
 
     with open(filename_raw, 'wb') as file_out:
-        write_file_range_to_file(bytes_per_voxel, file_in_streamer, file_out, image_segment_size, image_size,
-                                 range_coords)
+        write_file_range_to_file(file_in_streamer, file_out, image_segment_size, range_coords)
 
 
-def write_file_range_to_file(bytes_per_voxel, file_in_streamer, file_out, image_segment_size, image_size_in,
-                             range_coords_in):
+def write_file_range_to_file(file_in_streamer, file_out, image_segment_size, range_coords_in):
     i_range = range_coords_in[0]
     j_range = range_coords_in[1]
     k_range = range_coords_in[2]
@@ -191,8 +189,7 @@ def write_file_range_to_file(bytes_per_voxel, file_in_streamer, file_out, image_
             start_coords = [i, j, k]
             num_voxels_to_read = image_segment_size[0]
 
-            image_line = file_in_streamer.read_image_stream(image_size_in, bytes_per_voxel, start_coords,
-                                                            num_voxels_to_read)
+            image_line = file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
             bytes_written = file_out.write(image_line)
             if bytes_written != len(image_line):
                 raise ValueError('Unexpected number of bytes written')
@@ -211,6 +208,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
     file_reader = HugeFileHandle(filename_raw)
     image_size = header["DimSize"]
     num_dims = header["NDims"]
+    bytes_per_voxel = get_bytes_per_voxel(header["ElementType"])
     max_block_size_voxels_array = convert_to_array(max_block_size_voxels, "block size", num_dims)
     overlap_voxels_size_array = convert_to_array(overlap_size_voxels, "overlap size", num_dims)
 
@@ -225,7 +223,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
     split_file_list = []
     with file_reader as file_in:
-        file_in_streamer = HugeFileStreamer(file_in)
+        file_in_streamer = HugeFileStreamer(file_in, image_size, bytes_per_voxel)
         index = 0
         for subimage_range in ranges:
             suffix = "_" + str(index)
@@ -254,15 +252,17 @@ def convert_to_array(scalar_or_list, parameter_name, num_dims):
 
 
 class HugeFileStreamer:
-    def __init__(self, file_handle_object):
+    def __init__(self, file_handle_object, image_size, bytes_per_voxel):
+        self._bytes_per_voxel = bytes_per_voxel
+        self._image_size = image_size
         self._file_handle_object = file_handle_object
 
-    def read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
+    def read_image_stream(self, start_coords, num_voxels_to_read):
         """Reads a line of image data from a binary file at the specified image location"""
 
-        offset = self.get_linear_byte_offset(image_size, bytes_per_voxel, start_coords)
+        offset = self.get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_handle_object.seek(offset)
-        return self._file_handle_object.read(num_voxels_to_read*bytes_per_voxel)
+        return self._file_handle_object.read(num_voxels_to_read*self._bytes_per_voxel)
 
     @staticmethod
     def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):

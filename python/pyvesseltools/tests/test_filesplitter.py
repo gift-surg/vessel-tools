@@ -88,12 +88,11 @@ class TestFileSplitter(unittest.TestCase):
     ])
     def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
         fake_file = FakeFile(range(0, image_size[0]*image_size[1]*image_size[2]-1), bytes_per_voxel)
-        file_streamer = HugeFileStreamer(fake_file)
+        file_streamer = HugeFileStreamer(fake_file, image_size, bytes_per_voxel)
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
         end = start + num_voxels_to_read
         expected = range(start, end)
-        self.assertEquals(file_streamer.read_image_stream(image_size, bytes_per_voxel, start_coords, num_voxels_to_read),
-                          expected)
+        self.assertEquals(file_streamer.read_image_stream(start_coords, num_voxels_to_read), expected)
 
 if __name__ == '__main__':
     unittest.main()
