@@ -158,12 +158,12 @@ def get_bytes_per_voxel(element_type):
     return switcher.get(element_type, 2)
 
 
-def create_file_from_range(output_filename, range_coords, file_in_streamer, metadata):
+def create_file_from_range(output_filename, range_coords_in, file_in_streamer, metadata, bytes_per_voxel_out):
     """Creates a subimage by reading the specified range of data from the file handle"""
 
-    i_range = range_coords[0]
-    j_range = range_coords[1]
-    k_range = range_coords[2]
+    i_range = range_coords_in[0]
+    j_range = range_coords_in[1]
+    k_range = range_coords_in[2]
     image_segment_offset = [i_range[0], j_range[0], k_range[0]]
     image_segment_size = [1 + i_range[1] - i_range[0], 1 + j_range[1] - j_range[0], 1 + k_range[1] - k_range[0]]
 
@@ -177,21 +177,31 @@ def create_file_from_range(output_filename, range_coords, file_in_streamer, meta
     save_mhd_header(filename_header, metadata_reduced)
 
     with open(filename_raw, 'wb') as file_out:
-        file_out_streamer = HugeFileOutStreamer(file_out)
-        write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords)
+        file_out_streamer = HugeFileOutStreamer(file_out, image_segment_size, bytes_per_voxel_out)
+        range_coords_out = [[0, image_segment_size[0]], [0, image_segment_size[1]], [0, image_segment_size[2]]]
+        write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in, range_coords_out)
 
 
-def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in):
-    i_range = range_coords_in[0]
-    j_range = range_coords_in[1]
-    k_range = range_coords_in[2]
+def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in, range_coords_out):
+    i_range_in = range_coords_in[0]
+    j_range_in = range_coords_in[1]
+    k_range_in = range_coords_in[2]
+    i_range_out = range_coords_out[0]
+    j_range_out = range_coords_out[1]
+    k_range_out = range_coords_out[2]
 
-    for k in range(k_range[0], 1 + k_range[1]):
-        for j in range(j_range[0], 1 + j_range[1]):
-            start_coords = [i_range[0], j, k]
-            num_voxels_to_read = i_range[1] + 1 - i_range[0]
-            image_line = file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
-            file_out_streamer.write_image_stream(image_line)
+    bytes_written = 0
+
+    for k_in, k_out in zip(range(k_range_in[0], 1 + k_range_in[1]), range(k_range_out[0], 1 + k_range_out[1])):
+        for j_in, j_out in zip(range(j_range_in[0], 1 + j_range_in[1]), range(j_range_out[0], 1 + j_range_out[1])):
+            start_coords_in = [i_range_in[0], j_in, k_in]
+            num_voxels_to_read = i_range_in[1] + 1 - i_range_in[0]
+            image_line = file_in_streamer.read_image_stream(start_coords_in, num_voxels_to_read)
+            start_coords_out = [i_range_out[0], j_out, k_out]
+            file_out_streamer.write_image_stream(start_coords_out, image_line)
+            bytes_written += len(image_line)
+
+    print("bytes written:" + str(bytes_written))
 
 
 def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
@@ -227,7 +237,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
         for subimage_range in ranges:
             suffix = "_" + str(index)
             output_filename = filename_out_base + suffix
-            create_file_from_range(output_filename, subimage_range, file_in_streamer, header)
+            create_file_from_range(output_filename, subimage_range, file_in_streamer, header, bytes_per_voxel)
             file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
             split_file_list.append(file_descriptor)
 
@@ -251,14 +261,17 @@ def convert_to_array(scalar_or_list, parameter_name, num_dims):
 
 
 class HugeFileOutStreamer:
-    def __init__(self, file_handle_object):
+    def __init__(self, file_handle_object, image_size, bytes_per_voxel):
+        self._image_size = image_size
+        self._bytes_per_voxel = bytes_per_voxel
         self._file_handle_object = file_handle_object
 
-    def write_image_stream(self, image_line):
+    def write_image_stream(self, start_coords, image_line):
+        offset = HugeFileStreamer.get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
+        self._file_handle_object.seek(offset)
         bytes_written = self._file_handle_object.write(image_line)
         if bytes_written != len(image_line):
             raise ValueError('Unexpected number of bytes written')
-
 
 
 class HugeFileStreamer:

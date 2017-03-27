@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+
+#
+# Copyright UCL 2017
+# Author: Tom Doel
+#
+
+from __future__ import division, print_function
+
+import argparse
+import os
+import sys
+
+import file_splitter
+from file_splitter import write_file_range_to_file, get_bytes_per_voxel, HugeFileHandle, HugeFileStreamer, \
+    HugeFileOutStreamer
+from json_reader import read_json
+
+
+def load_descriptor(descriptor_filename):
+    data = read_json(descriptor_filename)
+    if not data["appname"] == "GIFT-Surg split data":
+        raise ValueError('Not a GIFT-Surg file')
+    if not data["version"] == "1.0":
+        raise ValueError('Cannot read this file version')
+    return data
+
+
+def combine_file(input_file_base, descriptor_filename, filename_out):
+    """Combines several overlapping files into one output file"""
+
+    descriptor = load_descriptor(descriptor_filename)
+    original_file_list = descriptor["source_files"]
+    if not len(original_file_list) == 1:
+        raise ValueError('This function only supports data derived from a single file')
+
+    original_file_descriptor = original_file_list[0]
+    original_header = file_splitter.load_mhd_header(original_file_descriptor["filename"])
+
+    original_image_size = original_header["DimSize"]
+    input_file_list = descriptor["split_files"]
+    num_input_files = len(input_file_list)
+    bytes_per_voxel_out = get_bytes_per_voxel(original_header["ElementType"])
+
+    if not filename_out:
+        filename_out = os.path.splitext(filename_out)[0] + "_combined"
+    filename_header = filename_out + '.mhd'
+    filename_raw = filename_out + '.raw'
+    original_header['ElementDataFile'] = filename_raw
+    file_splitter.save_mhd_header(filename_header, original_header)
+
+    descriptors = [None] * num_input_files
+
+    # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
+    for file_descriptor in input_file_list:
+        index = file_descriptor["index"]
+        descriptors[index] = file_descriptor
+
+    with open(filename_raw, 'wb') as file_out:
+        file_out_streamer = HugeFileOutStreamer(file_out, original_image_size, bytes_per_voxel_out)
+        for file_index in range(0, num_input_files):
+
+            current_descriptor = descriptors[file_index]
+            input_filename = input_file_base + current_descriptor["suffix"] + ".mhd"
+            current_range = current_descriptor["ranges"]
+            i_range = current_range[0]
+            j_range = current_range[1]
+            k_range = current_range[2]
+
+            current_input_header = file_splitter.load_mhd_header(input_filename)
+            filename_raw_in = current_input_header["ElementDataFile"]
+            bytes_per_voxel = get_bytes_per_voxel(current_input_header["ElementType"])
+            file_reader_in = HugeFileHandle(filename_raw_in)
+            image_size_in = current_input_header["DimSize"]
+
+            input_range = [[i_range[2], i_range[1] - i_range[0] - i_range[3]],
+                           [j_range[2], j_range[1] - j_range[0] - j_range[3]],
+                           [k_range[2], k_range[1] - k_range[0] - k_range[3]]]
+
+            output_range = [[i_range[0] + i_range[2], i_range[1] - i_range[3]],
+                            [j_range[0] + j_range[2], j_range[1] - j_range[3]],
+                            [k_range[0] + k_range[2], k_range[1] - k_range[3]]]
+
+            with file_reader_in as file_handle_in:
+                file_in_streamer = HugeFileStreamer(file_handle_in, image_size_in, bytes_per_voxel)
+                write_file_range_to_file(file_in_streamer, file_out_streamer, input_range, output_range)
+
+
+def main(args):
+    parser = argparse.ArgumentParser(description='Combines multiple image parts into a single large MetaIO (.mhd) file')
+
+    parser.add_argument("-f", "--filename", required=True, default="_no_filename_specified",
+                        help="Base name of files to combine")
+    parser.add_argument("-o", "--out", required=False, default="", help="Filename of combined output file")
+    parser.add_argument("-d", "--descriptor", required=True, default="_no_filename_specified",
+                        help="Name of descriptor file (.gift) which defines the file splitting")
+
+    args = parser.parse_args(args)
+
+    assert sys.version_info >= (3, 0)
+
+    if args.filename == '_no_filename_specified':
+        raise ValueError('No filename was specified')
+    else:
+        if args.descriptor == '_no_filename_specified':
+            raise ValueError('No descriptor filename was specified')
+        else:
+            combine_file(args.filename, args.descriptor, args.out)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
