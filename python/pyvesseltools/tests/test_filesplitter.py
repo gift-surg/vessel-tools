@@ -3,7 +3,7 @@ import math
 
 from nose_parameterized import parameterized
 from tools.file_splitter import get_number_of_blocks, get_block_coordinate_range, get_image_block_ranges, \
-    get_suggested_block_size, get_linear_byte_offset, get_bytes_per_voxel, read_image_stream
+    get_suggested_block_size, get_bytes_per_voxel, HugeFileStreamer
 
 import unittest
 
@@ -65,11 +65,11 @@ class TestFileSplitter(unittest.TestCase):
                           [(500, 998), (500, 999), (668, 1000)]])
 
     def test_get_linear_byte_offset(self):
-        self.assertEqual(get_linear_byte_offset([11, 22, 33], 4, [1, 2, 3]), (1+2*11+3*11*22)*4)
-        self.assertEqual(get_linear_byte_offset([11, 22, 33, 44], 4, [1, 2, 3, 4]), (1+2*11+3*11*22+4*11*22*33)*4)
-        self.assertEqual(get_linear_byte_offset([11, 22, 33], 1, [1, 2, 3]), (1+2*11+3*11*22)*1)
-        self.assertEqual(get_linear_byte_offset([11, 22, 33], 4, [0, 2, 3]), (0+2*11+3*11*22)*4)
-        self.assertEqual(get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
+        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 4, [1, 2, 3]), (1+2*11+3*11*22)*4)
+        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33, 44], 4, [1, 2, 3, 4]), (1+2*11+3*11*22+4*11*22*33)*4)
+        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 1, [1, 2, 3]), (1+2*11+3*11*22)*1)
+        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 4, [0, 2, 3]), (0+2*11+3*11*22)*4)
+        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
 
     def test_get_bytes_per_voxel(self):
         self.assertEquals(get_bytes_per_voxel('MET_CHAR'), 1)
@@ -88,10 +88,11 @@ class TestFileSplitter(unittest.TestCase):
     ])
     def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
         fake_file = FakeFile(range(0, image_size[0]*image_size[1]*image_size[2]-1), bytes_per_voxel)
+        file_streamer = HugeFileStreamer(fake_file)
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
         end = start + num_voxels_to_read
         expected = range(start, end)
-        self.assertEquals(read_image_stream(fake_file, image_size, bytes_per_voxel, start_coords, num_voxels_to_read),
+        self.assertEquals(file_streamer.read_image_stream(image_size, bytes_per_voxel, start_coords, num_voxels_to_read),
                           expected)
 
 if __name__ == '__main__':

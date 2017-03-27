@@ -138,26 +138,6 @@ def save_mhd_header(filename, metadata):
     f.close()
 
 
-def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
-    """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
-    point at the given coordinates """
-
-    offset = 0
-    offset_multiple = bytes_per_voxel
-    for coord, image_length in zip(start_coords, image_size):
-        offset += coord*offset_multiple
-        offset_multiple *= image_length
-    return offset
-
-
-def read_image_stream(file_handle, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
-    """Reads a line of image data from a binary file at the specified image location"""
-
-    offset = get_linear_byte_offset(image_size, bytes_per_voxel, start_coords)
-    file_handle.seek(offset)
-    return file_handle.read(num_voxels_to_read*bytes_per_voxel)
-
-
 def get_bytes_per_voxel(element_type):
     """Returns number of bytes required to store one voxel for the given metaIO ElementType"""
 
@@ -174,7 +154,7 @@ def get_bytes_per_voxel(element_type):
     return switcher.get(element_type, 2)
 
 
-def create_file_from_range(output_filename, range_coords, file_handle_in, metadata):
+def create_file_from_range(output_filename, range_coords, file_in_streamer, metadata):
     """Creates a subimage by reading the specified range of data from the file handle"""
 
     i_range = range_coords[0]
@@ -195,11 +175,11 @@ def create_file_from_range(output_filename, range_coords, file_handle_in, metada
     save_mhd_header(filename_header, metadata_reduced)
 
     with open(filename_raw, 'wb') as file_out:
-        write_file_range_to_file(bytes_per_voxel, file_handle_in, file_out, image_segment_size, image_size,
+        write_file_range_to_file(bytes_per_voxel, file_in_streamer, file_out, image_segment_size, image_size,
                                  range_coords)
 
 
-def write_file_range_to_file(bytes_per_voxel, file_handle_in, file_out, image_segment_size, image_size_in,
+def write_file_range_to_file(bytes_per_voxel, file_in_streamer, file_out, image_segment_size, image_size_in,
                              range_coords_in):
     i_range = range_coords_in[0]
     j_range = range_coords_in[1]
@@ -211,8 +191,8 @@ def write_file_range_to_file(bytes_per_voxel, file_handle_in, file_out, image_se
             start_coords = [i, j, k]
             num_voxels_to_read = image_segment_size[0]
 
-            image_line = read_image_stream(file_handle_in, image_size_in, bytes_per_voxel, start_coords,
-                                           num_voxels_to_read)
+            image_line = file_in_streamer.read_image_stream(image_size_in, bytes_per_voxel, start_coords,
+                                                            num_voxels_to_read)
             bytes_written = file_out.write(image_line)
             if bytes_written != len(image_line):
                 raise ValueError('Unexpected number of bytes written')
@@ -228,7 +208,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
     relative_filename_raw = header["ElementDataFile"]
     input_path = os.path.dirname(input_file)
     filename_raw = os.path.join(input_path, relative_filename_raw)
-    file_reader = HugeFileReader(filename_raw)
+    file_reader = HugeFileHandle(filename_raw)
     image_size = header["DimSize"]
     num_dims = header["NDims"]
     max_block_size_voxels_array = convert_to_array(max_block_size_voxels, "block size", num_dims)
@@ -245,11 +225,12 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
     split_file_list = []
     with file_reader as file_in:
+        file_in_streamer = HugeFileStreamer(file_in)
         index = 0
         for subimage_range in ranges:
             suffix = "_" + str(index)
             output_filename = filename_out_base + suffix
-            create_file_from_range(output_filename, subimage_range, file_in, header)
+            create_file_from_range(output_filename, subimage_range, file_in_streamer, header)
             file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
             split_file_list.append(file_descriptor)
 
@@ -272,7 +253,33 @@ def convert_to_array(scalar_or_list, parameter_name, num_dims):
     return array
 
 
-class HugeFileReader:
+class HugeFileStreamer:
+    def __init__(self, file_handle_object):
+        self._file_handle_object = file_handle_object
+
+    def read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
+        """Reads a line of image data from a binary file at the specified image location"""
+
+        offset = self.get_linear_byte_offset(image_size, bytes_per_voxel, start_coords)
+        self._file_handle_object.seek(offset)
+        return self._file_handle_object.read(num_voxels_to_read*bytes_per_voxel)
+
+    @staticmethod
+    def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
+        """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
+        point at the given coordinates """
+
+        offset = 0
+        offset_multiple = bytes_per_voxel
+        for coord, image_length in zip(start_coords, image_size):
+            offset += coord*offset_multiple
+            offset_multiple *= image_length
+        return offset
+
+
+
+
+class HugeFileHandle:
     def __init__(self, name):
         self.filename = name
 
