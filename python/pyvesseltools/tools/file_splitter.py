@@ -166,6 +166,7 @@ def create_file_from_range(output_filename, range_coords_in, file_in_streamer, m
     k_range = range_coords_in[2]
     image_segment_offset = [i_range[0], j_range[0], k_range[0]]
     image_segment_size = [1 + i_range[1] - i_range[0], 1 + j_range[1] - j_range[0], 1 + k_range[1] - k_range[0]]
+    range_coords_out = [[0, image_segment_size[0]], [0, image_segment_size[1]], [0, image_segment_size[2]]]
 
     filename_header = output_filename + '.mhd'
     filename_raw = output_filename + '.raw'
@@ -178,7 +179,6 @@ def create_file_from_range(output_filename, range_coords_in, file_in_streamer, m
 
     with open(filename_raw, 'wb') as file_out:
         file_out_streamer = HugeFileOutStreamer(file_out, image_segment_size, bytes_per_voxel_out)
-        range_coords_out = [[0, image_segment_size[0]], [0, image_segment_size[1]], [0, image_segment_size[2]]]
         write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in, range_coords_out)
 
 
@@ -190,8 +190,6 @@ def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_i
     j_range_out = range_coords_out[1]
     k_range_out = range_coords_out[2]
 
-    bytes_written = 0
-
     for k_in, k_out in zip(range(k_range_in[0], 1 + k_range_in[1]), range(k_range_out[0], 1 + k_range_out[1])):
         for j_in, j_out in zip(range(j_range_in[0], 1 + j_range_in[1]), range(j_range_out[0], 1 + j_range_out[1])):
             start_coords_in = [i_range_in[0], j_in, k_in]
@@ -199,9 +197,6 @@ def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_i
             image_line = file_in_streamer.read_image_stream(start_coords_in, num_voxels_to_read)
             start_coords_out = [i_range_out[0], j_out, k_out]
             file_out_streamer.write_image_stream(start_coords_out, image_line)
-            bytes_written += len(image_line)
-
-    print("bytes written:" + str(bytes_written))
 
 
 def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
