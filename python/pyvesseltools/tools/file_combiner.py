@@ -44,13 +44,8 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
     original_header['ElementDataFile'] = filename_raw
     file_splitter.save_mhd_header(filename_header, original_header)
 
-    num_input_files = len(input_file_list)
-    descriptors = [None] * num_input_files
-
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
-    for file_descriptor in input_file_list:
-        index = file_descriptor["index"]
-        descriptors[index] = file_descriptor
+    descriptors = sorted(input_file_list, key=lambda k: k['index'])
 
     with open(filename_raw, 'wb') as file_out:
         file_out_streamer = HugeFileOutStreamer(file_out, original_image_size, bytes_per_voxel_out)
