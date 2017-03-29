@@ -122,9 +122,9 @@ def generate_header_from_input_file_headers(input_file_base):
                               [0, current_image_size[1] - 1, 0, 0],
                               [0, current_image_size[2] - 1, 0, 0]]
         else:
-            if not current_image_size[0] == full_image_size[0] - 1:
+            if not current_image_size[0] == full_image_size[0]:
                 raise ValueError('When loading without a descriptor file, the first dimension of each file must match')
-            if not current_image_size[1] == full_image_size[1] - 1:
+            if not current_image_size[1] == full_image_size[1]:
                 raise ValueError('When loading without a descriptor file, the second dimension of each file must match')
             full_image_size[2] = full_image_size[2] + current_image_size[2]
             current_ranges[2][0] = current_ranges[2][1] + 1
