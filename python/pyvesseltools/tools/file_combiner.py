@@ -101,7 +101,7 @@ def generate_header_from_input_file_headers(input_file_base):
 
     input_file_list = []
     file_index = 1
-    
+
     current_ranges = None
     combined_header = None
     full_image_size = None
@@ -147,7 +147,7 @@ def main(args):
     parser.add_argument("-f", "--filename", required=True, default="_no_filename_specified",
                         help="Base name of files to combine")
     parser.add_argument("-o", "--out", required=False, default="", help="Filename of combined output file")
-    parser.add_argument("-d", "--descriptor", required=True, default="_no_filename_specified",
+    parser.add_argument("-d", "--descriptor", required=False, default=None,
                         help="Name of descriptor file (.gift) which defines the file splitting")
 
     args = parser.parse_args(args)
@@ -157,10 +157,7 @@ def main(args):
     if args.filename == '_no_filename_specified':
         raise ValueError('No filename was specified')
     else:
-        if args.descriptor == '_no_filename_specified':
-            raise ValueError('No descriptor filename was specified')
-        else:
-            combine_file(args.filename, args.descriptor, args.out)
+        combine_file(args.filename, None, args.out)
 
 
 if __name__ == '__main__':
