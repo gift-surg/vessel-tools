@@ -96,11 +96,14 @@ def generate_header_from_descriptor_file(descriptor_filename):
 
 def generate_header_from_input_file_headers(input_file_base):
 
-    if not os.path.isfile(input_file_base + '0.mhd'):
-        raise ValueError('No file series found starting with ' + input_file_base + '0.mhd')
+    file_index = 1
+    suffix = str(file_index)
+    file_name = input_file_base + suffix + '.mhd'
+
+    if not os.path.isfile(file_name):
+        raise ValueError('No file series found starting with ' + file_name)
 
     input_file_list = []
-    file_index = 1
 
     current_ranges = None
     combined_header = None
