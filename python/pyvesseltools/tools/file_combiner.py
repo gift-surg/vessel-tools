@@ -60,7 +60,8 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
             k_range = current_range[2]
 
             current_input_header = file_splitter.load_mhd_header(input_filename)
-            filename_raw_in = current_input_header["ElementDataFile"]
+            input_path = os.path.dirname(os.path.abspath(input_filename))
+            filename_raw_in = input_path + current_input_header["ElementDataFile"]
             bytes_per_voxel = get_bytes_per_voxel(current_input_header["ElementType"])
             file_reader_in = HugeFileHandle(filename_raw_in)
             image_size_in = current_input_header["DimSize"]
