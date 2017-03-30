@@ -158,7 +158,7 @@ def get_bytes_per_voxel(element_type):
     return switcher.get(element_type, 2)
 
 
-def create_file_from_range(output_filename, range_coords_in, file_in_streamer, metadata, bytes_per_voxel_out):
+def create_file_from_range(output_filename, range_coords_in, input_combined, metadata, bytes_per_voxel_out):
     """Creates a subimage by reading the specified range of data from the file handle"""
 
     i_range = range_coords_in[0]
@@ -179,10 +179,10 @@ def create_file_from_range(output_filename, range_coords_in, file_in_streamer, m
 
     with open(filename_raw, 'wb') as file_out:
         file_out_streamer = HugeFileOutStreamer(file_out, image_segment_size, bytes_per_voxel_out)
-        write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in, range_coords_out)
+        write_file_range_to_file(input_combined, file_out_streamer, range_coords_in, range_coords_out)
 
 
-def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_in, range_coords_out):
+def write_file_range_to_file(input_combined, file_out_streamer, range_coords_in, range_coords_out):
     i_range_in = range_coords_in[0]
     j_range_in = range_coords_in[1]
     k_range_in = range_coords_in[2]
@@ -194,7 +194,7 @@ def write_file_range_to_file(file_in_streamer, file_out_streamer, range_coords_i
         for j_in, j_out in zip(range(j_range_in[0], 1 + j_range_in[1]), range(j_range_out[0], 1 + j_range_out[1])):
             start_coords_in = [i_range_in[0], j_in, k_in]
             num_voxels_to_read = i_range_in[1] + 1 - i_range_in[0]
-            image_line = file_in_streamer.read_image_stream(start_coords_in, num_voxels_to_read)
+            image_line = input_combined.read_image_stream(start_coords_in, num_voxels_to_read)
             start_coords_out = [i_range_out[0], j_out, k_out]
             file_out_streamer.write_image_stream(start_coords_out, image_line)
 
@@ -206,10 +206,6 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
         filename_out_base = os.path.splitext(input_file)[0] + "_split"
 
     header = load_mhd_header(input_file)
-    relative_filename_raw = header["ElementDataFile"]
-    input_path = os.path.dirname(input_file)
-    filename_raw = os.path.join(input_path, relative_filename_raw)
-    file_reader = HugeFileHandle(filename_raw)
     image_size = header["DimSize"]
     num_dims = header["NDims"]
     bytes_per_voxel = get_bytes_per_voxel(header["ElementType"])
@@ -221,22 +217,31 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
     descriptor = {"appname": "GIFT-Surg split data", "version": "1.0"}
 
     original_file_list = []
-    original_file_descriptor = {"filename": input_file, "ranges": [[0, image_size[0] - 1], [0, image_size[1] - 1],
-                                                                   [0, image_size[2] - 1]], "suffix": "", "index": 0}
+    original_file_descriptor = {"filename": input_file, "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
+                                                                   [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
     original_file_list.append(original_file_descriptor)
 
-    split_file_list = []
-    with file_reader as file_in:
-        file_in_streamer = HugeFileStreamer(file_in, image_size, bytes_per_voxel)
-        index = 0
-        for subimage_range in ranges:
-            suffix = "_" + str(index)
-            output_filename = filename_out_base + suffix
-            create_file_from_range(output_filename, subimage_range, file_in_streamer, header, bytes_per_voxel)
-            file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
-            split_file_list.append(file_descriptor)
+    main_file_descriptor = FileDescriptor(input_file, 0, "", [0, image_size[0] - 1], [0, image_size[1] - 1],
+                                     [0, image_size[2] - 1])
 
-            index += 1
+    split_file_list = []
+    input_file_base = os.path.splitext(input_file)[0]
+    input_combined = CombinedFile(input_file_base, original_file_list)
+    input_combined.temp_set_file_number(0)
+
+    # with file_reader as file_in:
+        # file_in_streamer = HugeFileStreamer(file_in, image_size, bytes_per_voxel)
+    index = 0
+    for subimage_range in ranges:
+        suffix = "_" + str(index)
+        output_filename = filename_out_base + suffix
+        create_file_from_range(output_filename, subimage_range, input_combined, header, bytes_per_voxel)
+        file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
+        split_file_list.append(file_descriptor)
+
+        index += 1
+
+    input_combined.temp_close_current_file()
 
     descriptor["split_files"] = split_file_list
     descriptor["source_files"] = original_file_list
@@ -298,13 +303,74 @@ class HugeFileStreamer:
 class HugeFileHandle:
     def __init__(self, name):
         self.filename = name
+        self.file_handle = None
 
     def __enter__(self):
-        self.file_handle = open(self.filename, 'rb')
+        self.open()
         return self.file_handle
 
     def __exit__(self, type, value, traceback):
-        self.file_handle.close()
+        self.close()
+
+    def open(self):
+        self.file_handle = open(self.filename, 'rb')
+
+    def close(self):
+        if self.file_handle and not self.file_handle.closed:
+            self.file_handle.close()
+            self.file_handle = None
+
+
+class CombinedFile:
+    def __init__(self, input_file_base, descriptors):
+        self._input_file_base = input_file_base
+        self._input_path = os.path.dirname(os.path.abspath(self._input_file_base))
+        self._descriptors = sorted(descriptors, key=lambda k: k['index'])
+        self._current_file_reader_in = None
+        self._file_in_streamer = None
+
+    def read_image_stream(self, start_coords, num_voxels_to_read):
+        return self._file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
+
+    def temp_set_file_number(self, file_index):
+        current_descriptor = self._descriptors[file_index]
+        input_filename_header = self._input_file_base + current_descriptor["suffix"] + ".mhd"
+        current_range = current_descriptor["ranges"]
+        i_range = current_range[0]
+        j_range = current_range[1]
+        k_range = current_range[2]
+
+        current_input_header = load_mhd_header(input_filename_header)
+
+        filename_raw_in = os.path.join(self._input_path, current_input_header["ElementDataFile"])
+        bytes_per_voxel = get_bytes_per_voxel(current_input_header["ElementType"])
+        self._current_file_reader_in = HugeFileHandle(filename_raw_in)
+        image_size_in = current_input_header["DimSize"]
+
+        self.input_range = [[i_range[2], i_range[1] - i_range[0] - i_range[3]],
+                       [j_range[2], j_range[1] - j_range[0] - j_range[3]],
+                       [k_range[2], k_range[1] - k_range[0] - k_range[3]]]
+
+        self.output_range = [[i_range[0] + i_range[2], i_range[1] - i_range[3]],
+                        [j_range[0] + j_range[2], j_range[1] - j_range[3]],
+                        [k_range[0] + k_range[2], k_range[1] - k_range[3]]]
+
+        self._current_file_reader_in.open()
+        self._file_in_streamer = HugeFileStreamer(self._current_file_reader_in.file_handle, image_size_in,
+                                                  bytes_per_voxel)
+
+    def temp_close_current_file(self):
+        self._current_file_reader_in.close()
+
+
+class FileDescriptor:
+    def __init__(self, file_name, index, suffix, i_range, j_range, k_range):
+        self.suffix = suffix
+        self.index = index
+        self.file_name = file_name
+        self.i_range = i_range
+        self.j_range = j_range
+        self.k_range = k_range
 
 
 def main(args):

@@ -44,6 +44,8 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
     original_header['ElementDataFile'] = filename_raw
     file_splitter.save_mhd_header(filename_header, original_header)
 
+    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list)
+
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
     descriptors = sorted(input_file_list, key=lambda k: k['index'])
 
@@ -51,32 +53,11 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
         file_out_streamer = HugeFileOutStreamer(file_out, original_image_size, bytes_per_voxel_out)
         num_descriptors = len(descriptors)
         for file_index in range(0, num_descriptors):
+            input_combined.temp_set_file_number(file_index)
 
-            current_descriptor = descriptors[file_index]
-            input_filename = input_file_base + current_descriptor["suffix"] + ".mhd"
-            current_range = current_descriptor["ranges"]
-            i_range = current_range[0]
-            j_range = current_range[1]
-            k_range = current_range[2]
+            write_file_range_to_file(input_combined, file_out_streamer, input_combined.input_range, input_combined.output_range)
 
-            current_input_header = file_splitter.load_mhd_header(input_filename)
-            input_path = os.path.dirname(os.path.abspath(input_filename))
-            filename_raw_in = os.path.join(input_path, current_input_header["ElementDataFile"])
-            bytes_per_voxel = get_bytes_per_voxel(current_input_header["ElementType"])
-            file_reader_in = HugeFileHandle(filename_raw_in)
-            image_size_in = current_input_header["DimSize"]
-
-            input_range = [[i_range[2], i_range[1] - i_range[0] - i_range[3]],
-                           [j_range[2], j_range[1] - j_range[0] - j_range[3]],
-                           [k_range[2], k_range[1] - k_range[0] - k_range[3]]]
-
-            output_range = [[i_range[0] + i_range[2], i_range[1] - i_range[3]],
-                            [j_range[0] + j_range[2], j_range[1] - j_range[3]],
-                            [k_range[0] + k_range[2], k_range[1] - k_range[3]]]
-
-            with file_reader_in as file_handle_in:
-                file_in_streamer = HugeFileStreamer(file_handle_in, image_size_in, bytes_per_voxel)
-                write_file_range_to_file(file_in_streamer, file_out_streamer, input_range, output_range)
+            input_combined.temp_close_current_file()
 
 
 def generate_header_from_descriptor_file(descriptor_filename):
@@ -156,7 +137,7 @@ def main(args):
     if args.filename == '_no_filename_specified':
         raise ValueError('No filename was specified')
     else:
-        combine_file(args.filename, None, args.out)
+        combine_file(args.filename, args.descriptor, args.out)
 
 
 if __name__ == '__main__':
