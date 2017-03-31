@@ -12,8 +12,8 @@ import os
 import sys
 
 import file_splitter
-from file_splitter import write_file_range_to_file, get_bytes_per_voxel, HugeFileHandle, HugeFileStreamer, \
-    HugeFileOutStreamer
+from file_splitter import write_file_range_to_file, get_bytes_per_voxel, HugeFileOutStreamer
+from file_wrapper import FileHandleFactory
 from json_reader import read_json
 
 
@@ -26,7 +26,7 @@ def load_descriptor(descriptor_filename):
     return data
 
 
-def combine_file(input_file_base, descriptor_filename, filename_out):
+def combine_file(input_file_base, descriptor_filename, filename_out, file_factory):
     """Combines several overlapping files into one output file"""
 
     if not filename_out:
@@ -44,7 +44,7 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
     original_header['ElementDataFile'] = filename_raw
     file_splitter.save_mhd_header(filename_header, original_header)
 
-    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list)
+    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list, file_factory)
 
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
     descriptors = sorted(input_file_list, key=lambda k: k['index'])
@@ -53,11 +53,20 @@ def combine_file(input_file_base, descriptor_filename, filename_out):
         file_out_streamer = HugeFileOutStreamer(file_out, original_image_size, bytes_per_voxel_out)
         num_descriptors = len(descriptors)
         for file_index in range(0, num_descriptors):
-            input_combined.temp_set_file_number(file_index)
+            # input_combined.temp_set_file_number(file_index)
+            output_ranges = descriptors[file_index]["ranges"]
+            output_ranges[0][0] = output_ranges[0][0] + output_ranges[0][2]
+            output_ranges[0][1] = output_ranges[0][1] - output_ranges[0][3]
 
-            write_file_range_to_file(input_combined, file_out_streamer, input_combined.input_range, input_combined.output_range)
+            output_ranges[1][0] = output_ranges[1][0] + output_ranges[1][2]
+            output_ranges[1][1] = output_ranges[1][1] - output_ranges[1][3]
 
-            input_combined.temp_close_current_file()
+            output_ranges[2][0] = output_ranges[2][0] + output_ranges[2][2]
+            output_ranges[2][1] = output_ranges[2][1] - output_ranges[2][3]
+
+            write_file_range_to_file(input_combined, file_out_streamer, output_ranges, output_ranges)
+
+            input_combined.close()
 
 
 def generate_header_from_descriptor_file(descriptor_filename):
@@ -137,7 +146,7 @@ def main(args):
     if args.filename == '_no_filename_specified':
         raise ValueError('No filename was specified')
     else:
-        combine_file(args.filename, args.descriptor, args.out)
+        combine_file(args.filename, args.descriptor, args.out, FileHandleFactory())
 
 
 if __name__ == '__main__':

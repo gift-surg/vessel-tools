@@ -11,8 +11,9 @@ import argparse
 import os
 import sys
 from math import ceil
-from collections import OrderedDict
 
+from file_wrapper import CombinedFile, load_mhd_header, get_bytes_per_voxel, FileHandleFactory, save_mhd_header, \
+    HugeFileStreamer
 from json_reader import write_json
 
 
@@ -77,87 +78,6 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     return block_ranges
 
 
-def load_mhd_header(filename):
-    """Return an OrderedDict containing metadata loaded from an mhd file"""
-
-    metadata = OrderedDict()
-
-    with open(filename) as header_file:
-        for line in header_file:
-            (key, val) = [x.strip() for x in line.split("=")]
-            if key in ['ElementSpacing', 'Offset', 'CenterOfRotation', 'TransformMatrix']:
-                val = [float(s) for s in val.split()]
-            elif key in ['NDims', 'ElementNumberOfChannels']:
-                val = int(val)
-            elif key in ['DimSize']:
-                val = [int(s) for s in val.split()]
-            elif key in ['BinaryData', 'BinaryDataByteOrderMSB', 'CompressedData']:
-                if val.lower() == "true":
-                    val = True
-                else:
-                    val = False
-
-            metadata[key] = val
-
-    return metadata
-
-
-def get_default_metadata():
-    """Return an OrderedDict containing default mhd file metadata"""
-
-    return OrderedDict(
-        [('ObjectType', 'Image'), ('NDims', '3'), ('BinaryData', 'True'), ('BinaryDataByteOrderMSB', 'True'),
-         ('CompressedData', []), ('CompressedDataSize', []), ('TransformMatrix', []), ('Offset', []),
-         ('CenterOfRotation', []), ('AnatomicalOrientation', []), ('ElementSpacing', []), ('DimSize', []),
-         ('ElementNumberOfChannels', []), ('ElementSize', []), ('ElementType', 'MET_FLOAT'), ('ElementDataFile', []),
-         ('Comment', []), ('SeriesDescription', []), ('AcquisitionDate', []), ('AcquisitionTime', []),
-         ('StudyDate', []), ('StudyTime', [])])
-
-
-def save_mhd_header(filename, metadata):
-    """Saves a mhd header file to disk using the given metadata"""
-
-    # Add default metadata, replacing with custom specified values
-    header = ''
-    default_metadata = get_default_metadata()
-    for key, val in default_metadata.items():
-        if key in metadata.keys():
-            value = metadata[key]
-        else:
-            value = val
-        if value:
-            value = str(value)
-            value = value.replace("[", "").replace("]", "").replace(",", "")
-            header += '%s = %s\n' % (key, value)
-
-    # Add any custom metadata tags
-    for key, val in metadata.items():
-        if key not in default_metadata.keys():
-            value = str(metadata[key])
-            value = value.replace("[", "").replace("]", "").replace(",", "")
-            header += '%s = %s\n' % (key, value)
-
-    f = open(filename, 'w')
-    f.write(header)
-    f.close()
-
-
-def get_bytes_per_voxel(element_type):
-    """Returns number of bytes required to store one voxel for the given metaIO ElementType"""
-
-    switcher = {
-        'MET_CHAR': 1,
-        'MET_UCHAR': 1,
-        'MET_SHORT': 2,
-        'MET_USHORT': 2,
-        'MET_INT': 4,
-        'MET_UINT': 4,
-        'MET_FLOAT': 4,
-        'MET_DOUBLE': 8,
-    }
-    return switcher.get(element_type, 2)
-
-
 def create_file_from_range(output_filename, range_coords_in, input_combined, metadata, bytes_per_voxel_out):
     """Creates a subimage by reading the specified range of data from the file handle"""
 
@@ -179,27 +99,29 @@ def create_file_from_range(output_filename, range_coords_in, input_combined, met
 
     with open(filename_raw, 'wb') as file_out:
         file_out_streamer = HugeFileOutStreamer(file_out, image_segment_size, bytes_per_voxel_out)
-        write_file_range_to_file(input_combined, file_out_streamer, range_coords_in, range_coords_out)
+        write_file_range_to_file(input_combined, file_out_streamer, range_coords_out, range_coords_in)
 
 
-def write_file_range_to_file(input_combined, file_out_streamer, range_coords_in, range_coords_out):
-    i_range_in = range_coords_in[0]
-    j_range_in = range_coords_in[1]
-    k_range_in = range_coords_in[2]
+def write_file_range_to_file(input_combined, file_out_streamer, range_coords_out, global_range):
     i_range_out = range_coords_out[0]
     j_range_out = range_coords_out[1]
     k_range_out = range_coords_out[2]
+    i_range_global = global_range[0]
+    j_range_global = global_range[1]
+    k_range_global = global_range[2]
 
-    for k_in, k_out in zip(range(k_range_in[0], 1 + k_range_in[1]), range(k_range_out[0], 1 + k_range_out[1])):
-        for j_in, j_out in zip(range(j_range_in[0], 1 + j_range_in[1]), range(j_range_out[0], 1 + j_range_out[1])):
-            start_coords_in = [i_range_in[0], j_in, k_in]
-            num_voxels_to_read = i_range_in[1] + 1 - i_range_in[0]
-            image_line = input_combined.read_image_stream(start_coords_in, num_voxels_to_read)
+    for k_out, k_global in zip(range(k_range_out[0], 1 + k_range_out[1]),
+                               range(k_range_global[0], 1 + k_range_global[1])):
+        for j_out, j_global in zip(range(j_range_out[0], 1 + j_range_out[1]),
+                                   range(j_range_global[0], 1 + j_range_global[1])):
+            start_coords_global = [i_range_global[0], j_global, k_global]
+            num_voxels_to_read = i_range_global[1] + 1 - i_range_global[0]
+            image_line = input_combined.read_image_stream(start_coords_global, num_voxels_to_read)
             start_coords_out = [i_range_out[0], j_out, k_out]
             file_out_streamer.write_image_stream(start_coords_out, image_line)
 
 
-def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels):
+def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels, file_factory):
     """Saves the specified image file as a number of smaller files"""
 
     if not filename_out_base:
@@ -217,20 +139,18 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
     descriptor = {"appname": "GIFT-Surg split data", "version": "1.0"}
 
     original_file_list = []
-    original_file_descriptor = {"filename": input_file, "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
-                                                                   [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
+    original_file_descriptor = {"filename": input_file,
+                                "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
+                                           [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
     original_file_list.append(original_file_descriptor)
 
     main_file_descriptor = FileDescriptor(input_file, 0, "", [0, image_size[0] - 1], [0, image_size[1] - 1],
-                                     [0, image_size[2] - 1])
+                                          [0, image_size[2] - 1])
 
     split_file_list = []
     input_file_base = os.path.splitext(input_file)[0]
-    input_combined = CombinedFile(input_file_base, original_file_list)
-    input_combined.temp_set_file_number(0)
+    input_combined = CombinedFile(input_file_base, original_file_list, file_factory)
 
-    # with file_reader as file_in:
-        # file_in_streamer = HugeFileStreamer(file_in, image_size, bytes_per_voxel)
     index = 0
     for subimage_range in ranges:
         suffix = "_" + str(index)
@@ -241,7 +161,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
         index += 1
 
-    input_combined.temp_close_current_file()
+    input_combined.close()
 
     descriptor["split_files"] = split_file_list
     descriptor["source_files"] = original_file_list
@@ -274,95 +194,6 @@ class HugeFileOutStreamer:
             raise ValueError('Unexpected number of bytes written')
 
 
-class HugeFileStreamer:
-    def __init__(self, file_handle_object, image_size, bytes_per_voxel):
-        self._bytes_per_voxel = bytes_per_voxel
-        self._image_size = image_size
-        self._file_handle_object = file_handle_object
-
-    def read_image_stream(self, start_coords, num_voxels_to_read):
-        """Reads a line of image data from a binary file at the specified image location"""
-
-        offset = self.get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
-        self._file_handle_object.seek(offset)
-        return self._file_handle_object.read(num_voxels_to_read*self._bytes_per_voxel)
-
-    @staticmethod
-    def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
-        """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
-        point at the given coordinates """
-
-        offset = 0
-        offset_multiple = bytes_per_voxel
-        for coord, image_length in zip(start_coords, image_size):
-            offset += coord*offset_multiple
-            offset_multiple *= image_length
-        return offset
-
-
-class HugeFileHandle:
-    def __init__(self, name):
-        self.filename = name
-        self.file_handle = None
-
-    def __enter__(self):
-        self.open()
-        return self.file_handle
-
-    def __exit__(self, type, value, traceback):
-        self.close()
-
-    def open(self):
-        self.file_handle = open(self.filename, 'rb')
-
-    def close(self):
-        if self.file_handle and not self.file_handle.closed:
-            self.file_handle.close()
-            self.file_handle = None
-
-
-class CombinedFile:
-    def __init__(self, input_file_base, descriptors):
-        self._input_file_base = input_file_base
-        self._input_path = os.path.dirname(os.path.abspath(self._input_file_base))
-        self._descriptors = sorted(descriptors, key=lambda k: k['index'])
-        self._current_file_reader_in = None
-        self._file_in_streamer = None
-
-    def read_image_stream(self, start_coords, num_voxels_to_read):
-        return self._file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
-
-    def temp_set_file_number(self, file_index):
-        current_descriptor = self._descriptors[file_index]
-        input_filename_header = self._input_file_base + current_descriptor["suffix"] + ".mhd"
-        current_range = current_descriptor["ranges"]
-        i_range = current_range[0]
-        j_range = current_range[1]
-        k_range = current_range[2]
-
-        current_input_header = load_mhd_header(input_filename_header)
-
-        filename_raw_in = os.path.join(self._input_path, current_input_header["ElementDataFile"])
-        bytes_per_voxel = get_bytes_per_voxel(current_input_header["ElementType"])
-        self._current_file_reader_in = HugeFileHandle(filename_raw_in)
-        image_size_in = current_input_header["DimSize"]
-
-        self.input_range = [[i_range[2], i_range[1] - i_range[0] - i_range[3]],
-                       [j_range[2], j_range[1] - j_range[0] - j_range[3]],
-                       [k_range[2], k_range[1] - k_range[0] - k_range[3]]]
-
-        self.output_range = [[i_range[0] + i_range[2], i_range[1] - i_range[3]],
-                        [j_range[0] + j_range[2], j_range[1] - j_range[3]],
-                        [k_range[0] + k_range[2], k_range[1] - k_range[3]]]
-
-        self._current_file_reader_in.open()
-        self._file_in_streamer = HugeFileStreamer(self._current_file_reader_in.file_handle, image_size_in,
-                                                  bytes_per_voxel)
-
-    def temp_close_current_file(self):
-        self._current_file_reader_in.close()
-
-
 class FileDescriptor:
     def __init__(self, file_name, index, suffix, i_range, j_range, k_range):
         self.suffix = suffix
@@ -374,7 +205,6 @@ class FileDescriptor:
 
 
 def main(args):
-
     parser = argparse.ArgumentParser(description='Splits a large MetaIO (.mhd) file into multiple parts with overlap')
 
     parser.add_argument("-f", "--filename", required=True, default="_no_filename_specified",
@@ -391,7 +221,7 @@ def main(args):
         raise ValueError('No filename was specified')
     else:
         assert sys.version_info >= (3, 0)
-        split_file(args.filename, args.out, args.max, args.overlap)
+        split_file(args.filename, args.out, args.max, args.overlap, FileHandleFactory())
 
 
 if __name__ == '__main__':
