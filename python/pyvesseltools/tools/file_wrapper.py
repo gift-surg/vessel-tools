@@ -10,29 +10,39 @@ from collections import OrderedDict
 
 
 class CombinedFile:
-    def __init__(self, input_file_base, descriptors, file_factory):
+    def __init__(self, input_file_base, descriptors, file_factory, header_template):
         descriptors_sorted = sorted(descriptors, key=lambda k: k['index'])
         self._subimages = []
         self._cached_last_subimage = None
         for descriptor in descriptors_sorted:
-            self._subimages.append(SubImage(input_file_base, descriptor, file_factory, None))
+            self._subimages.append(SubImage(input_file_base, descriptor, file_factory, header_template))
+
+    def write_image_stream(self, start_coords_global, num_voxels_to_read):
+        end_coords_global = [start + length - 1 for start, length in zip(start_coords_global, [num_voxels_to_read, 1, 1])]
+        return self._find_subimage(start_coords_global, end_coords_global, False).read_image_stream(start_coords_global,
+                                                                                             num_voxels_to_read)
 
     def read_image_stream(self, start_coords_global, num_voxels_to_read):
-        return self._find_subimage(start_coords_global).read_image_stream(start_coords_global, num_voxels_to_read)
+        end_coords_global = [start + length - 1 for start, length in zip(start_coords_global, [num_voxels_to_read, 1, 1])]
+        return self._find_subimage(start_coords_global, end_coords_global, True).read_image_stream(start_coords_global,
+                                                                                                   num_voxels_to_read)
 
     def close(self):
         for subimage in self._subimages:
             subimage.close()
 
-    def _find_subimage(self, start_coords_global):
+    def _find_subimage(self, start_coords_global, end_coords_global, must_be_in_roi):
 
         # For efficiency, first check the last subimage before going through the whole list
-        if self._cached_last_subimage and self._cached_last_subimage.contains_voxel(start_coords_global):
+        if self._cached_last_subimage \
+                and self._cached_last_subimage.contains_voxel(start_coords_global, must_be_in_roi) \
+                and self._cached_last_subimage.contains_voxel(end_coords_global, must_be_in_roi):
             return self._cached_last_subimage
 
         # Iterate through the list of subimages to find the one containing these start coordinates
         for next_subimage in self._subimages:
-            if next_subimage.contains_voxel(start_coords_global):
+            if next_subimage.contains_voxel(start_coords_global, must_be_in_roi) \
+                    and next_subimage.contains_voxel(end_coords_global, must_be_in_roi):
                 self._cached_last_subimage = next_subimage
                 return next_subimage
 
@@ -40,19 +50,20 @@ class CombinedFile:
 
 
 class SubImage:
-    def __init__(self, input_file_base, descriptor, file_factory, header):
+    def __init__(self, input_file_base, descriptor, file_factory, header_template):
         self._descriptor = descriptor
 
         # Construct the origin offset used to convert from global coordinates. This excludes overlapping voxels
         self._image_size = [1 + this_range[1] - this_range[0] for this_range in descriptor["ranges"]]
         self._origin_start = [this_range[0] for this_range in descriptor["ranges"]]
+        self._origin_end = [this_range[1] for this_range in descriptor["ranges"]]
         self._roi_start = [this_range[0] + this_range[2] for this_range in descriptor["ranges"]]
         self._roi_end = [this_range[1] - this_range[3] for this_range in descriptor["ranges"]]
 
-        if header:
-            header["DimSize"] = self._image_size
-            header["Origin"] = self._origin_start
-        self._file = MetaIoFile(input_file_base + descriptor["suffix"] + ".mhd", file_factory, header)
+        if header_template:
+            header_template["DimSize"] = self._image_size
+            header_template["Origin"] = self._origin_start
+        self._file = MetaIoFile(input_file_base + descriptor["suffix"] + ".mhd", file_factory, header_template)
 
     def write_image_stream(self, start_coords, image_line):
         """Writes a line of image data to a binary file at the specified image location"""
@@ -64,18 +75,23 @@ class SubImage:
         """Reads a line of image data from a binary file at the specified image location"""
 
         end_coords = [start_coords[0] + num_voxels_to_read - 1, start_coords[1], start_coords[2]]
-        if not self.contains_voxel(start_coords) or not self.contains_voxel(end_coords):
+        if not self.contains_voxel(start_coords, True) or not self.contains_voxel(end_coords, True):
             raise ValueError('The data range to load extends beyond this file')
 
         start_coords_local = self._convert_coords_to_local(start_coords)
         return self._file.read_image_stream(start_coords_local, num_voxels_to_read)
 
-    def contains_voxel(self, start_coords_global):
+    def contains_voxel(self, start_coords_global, must_be_in_roi):
         """Determines if the specified voxel lies within the ROI of this subimage """
 
-        return (self._roi_start[0] <= start_coords_global[0] <= self._roi_end[0] and
-                self._roi_start[1] <= start_coords_global[1] <= self._roi_end[1] and
-                self._roi_start[2] <= start_coords_global[2] <= self._roi_end[2])
+        if must_be_in_roi:
+            return (self._roi_start[0] <= start_coords_global[0] <= self._roi_end[0] and
+                    self._roi_start[1] <= start_coords_global[1] <= self._roi_end[1] and
+                    self._roi_start[2] <= start_coords_global[2] <= self._roi_end[2])
+        else:
+            return (self._origin_start[0] <= start_coords_global[0] <= self._origin_end[0] and
+                    self._origin_start[1] <= start_coords_global[1] <= self._origin_end[1] and
+                    self._origin_start[2] <= start_coords_global[2] <= self._origin_end[2])
 
     def close(self):
         self._file.close()
@@ -85,21 +101,21 @@ class SubImage:
 
 
 class MetaIoFile:
-    def __init__(self, header_filename, file_factory, header):
+    def __init__(self, header_filename, file_factory, header_template):
         self._file_factory = file_factory
         self._header_filename = header_filename
         self._input_path = os.path.dirname(os.path.abspath(header_filename))
         self._file_wrapper = None
         self._file_streamer = None
-        if header:
+        if header_template:
             # File is for writing
             self._mode = 'wb'
             # Force the raw filename to match the header filename
             base_filename = os.path.splitext(header_filename)[0]
-            header['ElementDataFile'] = base_filename + '.raw'
+            header_template['ElementDataFile'] = base_filename + '.raw'
 
-            save_mhd_header(header_filename, header)
-            self._header = header
+            save_mhd_header(header_filename, header_template)
+            self._header = header_template
 
         else:
             # File is for reading

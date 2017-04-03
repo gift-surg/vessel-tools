@@ -77,21 +77,6 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     return block_ranges
 
 
-def create_file_from_range(output_filename_base, range_coords_in, input_combined, metadata, file_factory):
-    """Creates a subimage by reading the specified range of data from the file handle"""
-
-    metadata_reduced = metadata
-    descriptor_out = {}
-    descriptor_out["index"] = 0
-    descriptor_out["suffix"] = ""
-    descriptor_out["filename"] = output_filename_base
-    descriptor_out["ranges"] = range_coords_in
-
-    output_combined = SubImage(output_filename_base, descriptor_out, file_factory, metadata_reduced)
-    write_file_range_to_file(input_combined, output_combined, range_coords_in)
-    output_combined.close()
-
-
 def write_file_range_to_file(input_combined, output_combined, global_range):
     i_range_global = global_range[0]
     j_range_global = global_range[1]
@@ -126,27 +111,35 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
                                 "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
                                            [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
     original_file_list.append(original_file_descriptor)
+    #
+    # main_file_descriptor = FileDescriptor(input_file, 0, "", [0, image_size[0] - 1], [0, image_size[1] - 1],
+    #                                       [0, image_size[2] - 1])
 
-    main_file_descriptor = FileDescriptor(input_file, 0, "", [0, image_size[0] - 1], [0, image_size[1] - 1],
-                                          [0, image_size[2] - 1])
-
-    split_file_list = []
     input_file_base = os.path.splitext(input_file)[0]
-    input_combined = CombinedFile(input_file_base, original_file_list, file_factory)
+    input_combined = CombinedFile(input_file_base, original_file_list, file_factory, None)
 
+    # Assemble descriptor list for output files
+    output_descriptors = []
+    ranges_to_write = []
     index = 0
     for subimage_range in ranges:
         suffix = "_" + str(index)
-        output_filename = filename_out_base + suffix
-        create_file_from_range(output_filename, subimage_range, input_combined, header, file_factory)
-        file_descriptor = {"filename": output_filename, "ranges": subimage_range, "suffix": suffix, "index": index}
-        split_file_list.append(file_descriptor)
-
+        output_filename_base = filename_out_base + suffix
+        file_descriptor_out = {"filename": output_filename_base, "ranges": subimage_range, "suffix": suffix,
+                               "index": index}
+        output_descriptors.append(file_descriptor_out)
+        ranges_to_write.append(subimage_range)
         index += 1
+
+    for output_descriptor in output_descriptors:
+        subimage_range = output_descriptor["ranges"]
+        output_combined = SubImage(filename_out_base, output_descriptor, file_factory, header)
+        write_file_range_to_file(input_combined, output_combined, subimage_range)
+        output_combined.close()
 
     input_combined.close()
 
-    descriptor["split_files"] = split_file_list
+    descriptor["split_files"] = output_descriptors
     descriptor["source_files"] = original_file_list
     descriptor_output_filename = filename_out_base + "_info.gift"
     write_json(descriptor_output_filename, descriptor)

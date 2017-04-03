@@ -38,7 +38,7 @@ def combine_file(input_file_base, descriptor_filename, filename_out_base, file_f
     else:
         [original_header, input_file_list] = generate_header_from_descriptor_file(descriptor_filename)
 
-    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list, file_factory)
+    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list, file_factory, None)
 
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
     descriptors = sorted(input_file_list, key=lambda k: k['index'])
