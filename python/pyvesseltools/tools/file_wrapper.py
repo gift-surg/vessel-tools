@@ -15,7 +15,7 @@ class CombinedFile:
         self._subimages = []
         self._cached_last_subimage = None
         for descriptor in descriptors_sorted:
-            self._subimages.append(SubImage(input_file_base, descriptor, file_factory))
+            self._subimages.append(SubImage(input_file_base, descriptor, file_factory, None))
 
     def read_image_stream(self, start_coords_global, num_voxels_to_read):
         return self._find_subimage(start_coords_global).read_image_stream(start_coords_global, num_voxels_to_read)
@@ -40,14 +40,25 @@ class CombinedFile:
 
 
 class SubImage:
-    def __init__(self, input_file_base, descriptor, file_factory):
+    def __init__(self, input_file_base, descriptor, file_factory, header):
         self._descriptor = descriptor
-        self._file = MetaIoFile(input_file_base + descriptor["suffix"] + ".mhd", file_factory)
 
         # Construct the origin offset used to convert from global coordinates. This excludes overlapping voxels
+        self._image_size = [1 + this_range[1] - this_range[0] for this_range in descriptor["ranges"]]
         self._origin_start = [this_range[0] for this_range in descriptor["ranges"]]
         self._roi_start = [this_range[0] + this_range[2] for this_range in descriptor["ranges"]]
         self._roi_end = [this_range[1] - this_range[3] for this_range in descriptor["ranges"]]
+
+        if header:
+            header["DimSize"] = self._image_size
+            header["Origin"] = self._origin_start
+        self._file = MetaIoFile(input_file_base + descriptor["suffix"] + ".mhd", file_factory, header)
+
+    def write_image_stream(self, start_coords, image_line):
+        """Writes a line of image data to a binary file at the specified image location"""
+
+        start_coords_local = self._convert_coords_to_local(start_coords)
+        self._file.write_image_stream(start_coords_local, image_line)
 
     def read_image_stream(self, start_coords, num_voxels_to_read):
         """Reads a line of image data from a binary file at the specified image location"""
@@ -74,20 +85,36 @@ class SubImage:
 
 
 class MetaIoFile:
-    def __init__(self, header_filename, file_factory):
+    def __init__(self, header_filename, file_factory, header):
         self._file_factory = file_factory
         self._header_filename = header_filename
         self._input_path = os.path.dirname(os.path.abspath(header_filename))
-        self._header = None
         self._file_wrapper = None
         self._file_streamer = None
+        if header:
+            # File is for writing
+            self._mode = 'wb'
+            # Force the raw filename to match the header filename
+            base_filename = os.path.splitext(header_filename)[0]
+            header['ElementDataFile'] = base_filename + '.raw'
+
+            save_mhd_header(header_filename, header)
+            self._header = header
+
+        else:
+            # File is for reading
+            self._mode = 'rb'
+            self._header = None
+
+    def write_image_stream(self, start_coords, image_line):
+        """Writes a line of image data to a binary file at the specified image location"""
+
+        return self._get_file_streamer().write_image_stream(start_coords, image_line)
 
     def read_image_stream(self, start_coords, num_voxels_to_read):
         """Reads a line of image data from a binary file at the specified image location"""
 
-        file_in_streamer = self._get_file_streamer()
-        # file_in_streamer.open
-        return file_in_streamer.read_image_stream(start_coords, num_voxels_to_read)
+        return self._get_file_streamer().read_image_stream(start_coords, num_voxels_to_read)
 
     def _get_header(self):
         if not self._header:
@@ -98,7 +125,7 @@ class MetaIoFile:
         if not self._file_wrapper:
             header = self._get_header()
             filename_raw = os.path.join(self._input_path, header["ElementDataFile"])
-            self._file_wrapper = HugeFileWrapper(filename_raw, self._file_factory)
+            self._file_wrapper = HugeFileWrapper(filename_raw, self._file_factory, self._mode)
         return self._file_wrapper
 
     def _get_file_streamer(self):
@@ -129,12 +156,21 @@ class HugeFileStreamer:
     def read_image_stream(self, start_coords, num_voxels_to_read):
         """Reads a line of image data from a binary file at the specified image location"""
 
-        offset = self.get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
+        offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
         return self._file_wrapper.get_handle().read(num_voxels_to_read * self._bytes_per_voxel)
 
+    def write_image_stream(self, start_coords, image_line):
+        """Writes a line of image data to a binary file at the specified image location"""
+
+        offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
+        self._file_wrapper.get_handle().seek(offset)
+        bytes_written = self._file_wrapper.get_handle().write(image_line)
+        if bytes_written != len(image_line):
+            raise ValueError('Unexpected number of bytes written')
+
     @staticmethod
-    def get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
+    def _get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
         """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
         point at the given coordinates """
 
@@ -152,9 +188,10 @@ class HugeFileStreamer:
 class HugeFileWrapper:
     """A class to handle arbitrarily large files"""
 
-    def __init__(self, name, file_handle_factory):
+    def __init__(self, name, file_handle_factory, mode):
         self._file_handle_factory = file_handle_factory
         self._filename = name
+        self._mode = mode
         self._file_handle = None
 
     def __del__(self):
@@ -173,7 +210,7 @@ class HugeFileWrapper:
         return self._file_handle
 
     def open(self):
-        self._file_handle = self._file_handle_factory.create_file_handle(self._filename, 'rb')
+        self._file_handle = self._file_handle_factory.create_file_handle(self._filename, self._mode)
 
     def close(self):
         if self._file_handle and not self._file_handle.closed:

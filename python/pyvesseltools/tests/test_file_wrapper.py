@@ -48,11 +48,11 @@ class TestFileWrapper(unittest.TestCase):
     """Tests for FileWrapper"""
 
     def test_get_linear_byte_offset(self):
-        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 4, [1, 2, 3]), (1+2*11+3*11*22)*4)
-        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33, 44], 4, [1, 2, 3, 4]), (1+2*11+3*11*22+4*11*22*33)*4)
-        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 1, [1, 2, 3]), (1+2*11+3*11*22)*1)
-        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([11, 22, 33], 4, [0, 2, 3]), (0+2*11+3*11*22)*4)
-        self.assertEqual(HugeFileStreamer.get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
+        self.assertEqual(HugeFileStreamer._get_linear_byte_offset([11, 22, 33], 4, [1, 2, 3]), (1+2*11+3*11*22)*4)
+        self.assertEqual(HugeFileStreamer._get_linear_byte_offset([11, 22, 33, 44], 4, [1, 2, 3, 4]), (1+2*11+3*11*22+4*11*22*33)*4)
+        self.assertEqual(HugeFileStreamer._get_linear_byte_offset([11, 22, 33], 1, [1, 2, 3]), (1+2*11+3*11*22)*1)
+        self.assertEqual(HugeFileStreamer._get_linear_byte_offset([11, 22, 33], 4, [0, 2, 3]), (0+2*11+3*11*22)*4)
+        self.assertEqual(HugeFileStreamer._get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
 
     def test_get_bytes_per_voxel(self):
         self.assertEquals(get_bytes_per_voxel('MET_CHAR'), 1)
@@ -71,7 +71,7 @@ class TestFileWrapper(unittest.TestCase):
     ])
     def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
         fake_file_factory = FakeFileHandleFactory(FakeFile(range(0, image_size[0]*image_size[1]*image_size[2]-1), bytes_per_voxel))
-        wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory)
+        wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory, 'rb')
         file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel)
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
         end = start + num_voxels_to_read

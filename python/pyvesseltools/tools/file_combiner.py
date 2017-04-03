@@ -12,8 +12,8 @@ import os
 import sys
 
 import file_splitter
-from file_splitter import write_file_range_to_file, get_bytes_per_voxel, HugeFileOutStreamer
-from file_wrapper import FileHandleFactory
+from file_splitter import write_file_range_to_file
+from file_wrapper import FileHandleFactory, SubImage
 from json_reader import read_json
 
 
@@ -26,47 +26,49 @@ def load_descriptor(descriptor_filename):
     return data
 
 
-def combine_file(input_file_base, descriptor_filename, filename_out, file_factory):
+def combine_file(input_file_base, descriptor_filename, filename_out_base, file_factory):
     """Combines several overlapping files into one output file"""
 
-    if not filename_out:
-        filename_out = os.path.splitext(filename_out)[0] + "_combined"
-    filename_header = filename_out + '.mhd'
-    filename_raw = filename_out + '.raw'
+    if not filename_out_base:
+        filename_out_base = os.path.splitext(filename_out_base)[0] + "_combined"
+    filename_header = filename_out_base + '.mhd'
 
     if not descriptor_filename:
         [original_header, input_file_list] = generate_header_from_input_file_headers(input_file_base)
     else:
         [original_header, input_file_list] = generate_header_from_descriptor_file(descriptor_filename)
 
-    original_image_size = original_header["DimSize"]
-    bytes_per_voxel_out = get_bytes_per_voxel(original_header["ElementType"])
-    original_header['ElementDataFile'] = filename_raw
-    file_splitter.save_mhd_header(filename_header, original_header)
-
     input_combined = file_splitter.CombinedFile(input_file_base, input_file_list, file_factory)
 
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
     descriptors = sorted(input_file_list, key=lambda k: k['index'])
 
-    with open(filename_raw, 'wb') as file_out:
-        file_out_streamer = HugeFileOutStreamer(file_out, original_image_size, bytes_per_voxel_out)
-        num_descriptors = len(descriptors)
-        for file_index in range(0, num_descriptors):
-            # input_combined.temp_set_file_number(file_index)
-            output_ranges = descriptors[file_index]["ranges"]
-            output_ranges[0][0] = output_ranges[0][0] + output_ranges[0][2]
-            output_ranges[0][1] = output_ranges[0][1] - output_ranges[0][3]
+    output_image_size = original_header["DimSize"]
+    descriptor_out = {}
+    descriptor_out["index"] = 0
+    descriptor_out["suffix"] = ""
+    descriptor_out["filename"] = filename_header
+    descriptor_out["ranges"] = [[0, output_image_size[0] - 1, 0, 0],
+                                [0, output_image_size[1] - 1, 0, 0],
+                                [0, output_image_size[2] - 1, 0, 0]]
 
-            output_ranges[1][0] = output_ranges[1][0] + output_ranges[1][2]
-            output_ranges[1][1] = output_ranges[1][1] - output_ranges[1][3]
+    output_combined = SubImage(filename_out_base, descriptor_out, file_factory, original_header)
+    num_descriptors = len(descriptors)
+    for file_index in range(0, num_descriptors):
+        output_ranges = descriptors[file_index]["ranges"]
+        output_ranges[0][0] = output_ranges[0][0] + output_ranges[0][2]
+        output_ranges[0][1] = output_ranges[0][1] - output_ranges[0][3]
 
-            output_ranges[2][0] = output_ranges[2][0] + output_ranges[2][2]
-            output_ranges[2][1] = output_ranges[2][1] - output_ranges[2][3]
+        output_ranges[1][0] = output_ranges[1][0] + output_ranges[1][2]
+        output_ranges[1][1] = output_ranges[1][1] - output_ranges[1][3]
 
-            write_file_range_to_file(input_combined, file_out_streamer, output_ranges, output_ranges)
+        output_ranges[2][0] = output_ranges[2][0] + output_ranges[2][2]
+        output_ranges[2][1] = output_ranges[2][1] - output_ranges[2][3]
 
-            input_combined.close()
+        write_file_range_to_file(input_combined, output_combined, output_ranges)
+
+        input_combined.close()
+    output_combined.close()
 
 
 def generate_header_from_descriptor_file(descriptor_filename):
