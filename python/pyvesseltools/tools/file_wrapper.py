@@ -9,14 +9,23 @@ import os
 from collections import OrderedDict
 
 
+def write_files(descriptors_in, descriptors_out, file_factory, original_header):
+    input_combined = CombinedFileReader(descriptors_in, file_factory)
+    output_combined = CombinedFileWriter(descriptors_out, file_factory, original_header)
+    output_combined.write_image_file(input_combined)
+
+    input_combined.close()
+    output_combined.close()
+
+
 class CombinedFileWriter:
-    def __init__(self, output_file_base, descriptors, file_factory, header_template):
+    def __init__(self, descriptors, file_factory, header_template):
         descriptors_sorted = sorted(descriptors, key=lambda k: k['index'])
         self._subimages = []
         self._cached_last_subimage = None
         self._bytes_per_voxel = compute_bytes_per_voxel(header_template["ElementType"])
         for descriptor in descriptors_sorted:
-            self._subimages.append(SubImage(output_file_base, descriptor, file_factory, header_template))
+            self._subimages.append(SubImage(descriptor, file_factory, header_template))
 
     def write_image_file(self, input_combined):
         for next_image in self._subimages:
@@ -38,12 +47,12 @@ class CombinedFileWriter:
 
 
 class CombinedFileReader:
-    def __init__(self, input_file_base, descriptors, file_factory):
+    def __init__(self, descriptors, file_factory):
         descriptors_sorted = sorted(descriptors, key=lambda k: k['index'])
         self._subimages = []
         self._cached_last_subimage = None
         for descriptor in descriptors_sorted:
-            self._subimages.append(SubImage(input_file_base, descriptor, file_factory, None))
+            self._subimages.append(SubImage(descriptor, file_factory, None))
 
     def read_image_stream(self, start_coords_global, num_voxels_to_read):
         byte_stream = b''
@@ -80,7 +89,7 @@ class CombinedFileReader:
 
 
 class SubImage:
-    def __init__(self, input_file_base, descriptor, file_factory, header_template):
+    def __init__(self, descriptor, file_factory, header_template):
         self._descriptor = descriptor
 
         # Construct the origin offset used to convert from global coordinates. This excludes overlapping voxels
@@ -94,7 +103,7 @@ class SubImage:
         if header_template:
             header_template["DimSize"] = self._image_size
             header_template["Origin"] = self._origin_start
-        self._file = MetaIoFile(input_file_base + descriptor["suffix"] + ".mhd", file_factory, header_template)
+        self._file = MetaIoFile(descriptor["filename"], file_factory, header_template)
 
     def get_ranges(self):
         """Returns the full range of global coordinates covered by this subimage"""

@@ -12,7 +12,7 @@ import os
 import sys
 
 import file_splitter
-from file_wrapper import FileHandleFactory, CombinedFileWriter
+from file_wrapper import FileHandleFactory, write_files
 from json_reader import read_json
 
 
@@ -30,32 +30,27 @@ def combine_file(input_file_base, descriptor_filename, filename_out_base, file_f
 
     if not filename_out_base:
         filename_out_base = os.path.splitext(filename_out_base)[0] + "_combined"
-    filename_header = filename_out_base + '.mhd'
 
     if not descriptor_filename:
-        [original_header, input_file_list] = generate_header_from_input_file_headers(input_file_base)
+        start_index = 1
+        [original_header, descriptors_in] = generate_header_from_input_file_headers(input_file_base, start_index)
     else:
-        [original_header, input_file_list] = generate_header_from_descriptor_file(descriptor_filename)
+        [original_header, descriptors_in] = generate_header_from_descriptor_file(descriptor_filename)
 
-    input_combined = file_splitter.CombinedFileReader(input_file_base, input_file_list, file_factory)
+    descriptors_out = generate_output_descriptor_from_header(filename_out_base, original_header)
 
-    # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
-    # input_descriptors = sorted(input_file_list, key=lambda k: k['index'])
+    write_files(descriptors_in, descriptors_out, file_factory, original_header)
 
+
+def generate_output_descriptor_from_header(filename_out_base, original_header):
     output_image_size = original_header["DimSize"]
-    descriptor_out = {}
-    descriptor_out["index"] = 0
-    descriptor_out["suffix"] = ""
-    descriptor_out["filename"] = filename_header
-    descriptor_out["ranges"] = [[0, output_image_size[0] - 1, 0, 0],
-                                [0, output_image_size[1] - 1, 0, 0],
-                                [0, output_image_size[2] - 1, 0, 0]]
-
-    output_combined = CombinedFileWriter(filename_out_base, [descriptor_out], file_factory, original_header)
-    output_combined.write_image_file(input_combined)
-
-    input_combined.close()
-    output_combined.close()
+    descriptors_out = []
+    descriptor_out = {"index": 0, "suffix": "", "filename": filename_out_base + '.mhd',
+                      "ranges": [[0, output_image_size[0] - 1, 0, 0],
+                                 [0, output_image_size[1] - 1, 0, 0],
+                                 [0, output_image_size[2] - 1, 0, 0]]}
+    descriptors_out.append(descriptor_out)
+    return descriptors_out
 
 
 def generate_header_from_descriptor_file(descriptor_filename):
@@ -69,9 +64,9 @@ def generate_header_from_descriptor_file(descriptor_filename):
     return original_header, input_file_list
 
 
-def generate_header_from_input_file_headers(input_file_base):
+def generate_header_from_input_file_headers(input_file_base, start_index):
 
-    file_index = 1
+    file_index = start_index
     suffix = str(file_index)
     file_name = input_file_base + suffix + '.mhd'
 
@@ -109,11 +104,7 @@ def generate_header_from_input_file_headers(input_file_base):
         combined_header["DimSize"] = full_image_size
 
         # Create a descriptor for this subimage
-        descriptor = {}
-        descriptor["index"] = file_index
-        descriptor["suffix"] = suffix
-        descriptor["filename"] = file_name
-        descriptor["ranges"] = current_ranges
+        descriptor = {"index": file_index, "suffix": suffix, "filename": file_name, "ranges": current_ranges}
         input_file_list.append(descriptor)
 
         file_index += 1

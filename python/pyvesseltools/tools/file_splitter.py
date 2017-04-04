@@ -12,7 +12,7 @@ import os
 import sys
 from math import ceil
 
-from file_wrapper import CombinedFileReader, load_mhd_header, FileHandleFactory, SubImage, CombinedFileWriter
+from file_wrapper import load_mhd_header, FileHandleFactory, write_files
 from json_reader import write_json
 
 
@@ -77,70 +77,58 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     return block_ranges
 
 
-def write_file_range_to_file(input_combined, output_combined, global_range):
-    i_range_global = global_range[0]
-    j_range_global = global_range[1]
-    k_range_global = global_range[2]
-    num_voxels_to_read = i_range_global[1] + 1 - i_range_global[0]
-
-    for k_global in range(k_range_global[0], 1 + k_range_global[1]):
-        for j_global in range(j_range_global[0], 1 + j_range_global[1]):
-            start_coords_global = [i_range_global[0], j_global, k_global]
-            image_line = input_combined.read_image_stream(start_coords_global, num_voxels_to_read)
-            output_combined.write_image_stream(start_coords_global, image_line)
-
-
-def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels, file_factory):
+def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels, start_index, file_factory):
     """Saves the specified image file as a number of smaller files"""
 
+    input_file_base = os.path.splitext(input_file)[0]
     if not filename_out_base:
-        filename_out_base = os.path.splitext(input_file)[0] + "_split"
+        filename_out_base = input_file_base + "_split"
 
-    header = load_mhd_header(input_file)
+    [header, descriptors_in] = generate_input_descriptors(input_file_base, start_index)
+
+    descriptors_out = generate_output_descriptors(filename_out_base, max_block_size_voxels, overlap_size_voxels, header)
+
+    write_files(descriptors_in, descriptors_out, file_factory, header)
+
+    write_descriptor_file(descriptors_in, descriptors_out, filename_out_base)
+
+
+def generate_input_descriptors(input_file_base, start_index):
+    header_filename = input_file_base + '.mhd'
+    header = load_mhd_header(header_filename)
+    image_size = header["DimSize"]
+    descriptors_in = []
+    original_file_descriptor = {"filename": header_filename,
+                                "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
+                                           [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
+    descriptors_in.append(original_file_descriptor)
+    return header, descriptors_in
+
+
+def write_descriptor_file(descriptors_in, descriptors_out, filename_out_base):
+    descriptor = {"appname": "GIFT-Surg split data", "version": "1.0", "split_files": descriptors_out,
+                  "source_files": descriptors_in}
+    descriptor_output_filename = filename_out_base + "_info.gift"
+    write_json(descriptor_output_filename, descriptor)
+
+
+def generate_output_descriptors(filename_out_base, max_block_size_voxels, overlap_size_voxels, header):
     image_size = header["DimSize"]
     num_dims = header["NDims"]
     max_block_size_voxels_array = convert_to_array(max_block_size_voxels, "block size", num_dims)
     overlap_voxels_size_array = convert_to_array(overlap_size_voxels, "overlap size", num_dims)
-
     ranges = get_image_block_ranges(image_size, max_block_size_voxels_array, overlap_voxels_size_array)
 
-    descriptor = {"appname": "GIFT-Surg split data", "version": "1.0"}
-
-    original_file_list = []
-    original_file_descriptor = {"filename": input_file,
-                                "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
-                                           [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
-    original_file_list.append(original_file_descriptor)
-    #
-    # main_file_descriptor = FileDescriptor(input_file, 0, "", [0, image_size[0] - 1], [0, image_size[1] - 1],
-    #                                       [0, image_size[2] - 1])
-
-    input_file_base = os.path.splitext(input_file)[0]
-    input_combined = CombinedFileReader(input_file_base, original_file_list, file_factory)
-
-    # Assemble descriptor list for output files
-    output_descriptors = []
-    ranges_to_write = []
+    descriptors_out = []
     index = 0
     for subimage_range in ranges:
         suffix = "_" + str(index)
-        output_filename_base = filename_out_base + suffix
-        file_descriptor_out = {"filename": output_filename_base, "ranges": subimage_range, "suffix": suffix,
+        output_filename_header = filename_out_base + suffix + ".mhd"
+        file_descriptor_out = {"filename": output_filename_header, "ranges": subimage_range, "suffix": suffix,
                                "index": index}
-        output_descriptors.append(file_descriptor_out)
-        ranges_to_write.append(subimage_range)
+        descriptors_out.append(file_descriptor_out)
         index += 1
-
-    output_combined = CombinedFileWriter(filename_out_base, output_descriptors, file_factory, header)
-    output_combined.write_image_file(input_combined)
-
-    output_combined.close()
-    input_combined.close()
-
-    descriptor["split_files"] = output_descriptors
-    descriptor["source_files"] = original_file_list
-    descriptor_output_filename = filename_out_base + "_info.gift"
-    write_json(descriptor_output_filename, descriptor)
+    return descriptors_out
 
 
 def convert_to_array(scalar_or_list, parameter_name, num_dims):
@@ -168,12 +156,14 @@ def main(args):
     parser = argparse.ArgumentParser(description='Splits a large MetaIO (.mhd) file into multiple parts with overlap')
 
     parser.add_argument("-f", "--filename", required=True, default="_no_filename_specified",
-                        help="Name of file to split")
+                        help="Name of file to split, or filename prefix for a series of files")
     parser.add_argument("-o", "--out", required=False, default="", help="Prefix of output files")
     parser.add_argument("-l", "--overlap", required=False, default="50", type=int,
                         help="Number of voxels to overlap between outputs")
     parser.add_argument("-m", "--max", required=False, default="500", type=int,
                         help="Maximum number of voxels in each dimension")
+    parser.add_argument("-s", "--startindex", required=False, default="0", type=int,
+                        help="Start index for filename suffix when loading a series of files")
 
     args = parser.parse_args(args)
 
@@ -181,7 +171,7 @@ def main(args):
         raise ValueError('No filename was specified')
     else:
         assert sys.version_info >= (3, 0)
-        split_file(args.filename, args.out, args.max, args.overlap, FileHandleFactory())
+        split_file(args.filename, args.out, args.max, args.overlap, args.startindex, FileHandleFactory())
 
 
 if __name__ == '__main__':
