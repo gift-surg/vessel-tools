@@ -12,7 +12,7 @@ import os
 import sys
 from math import ceil
 
-from file_wrapper import CombinedFile, load_mhd_header, FileHandleFactory,  SubImage
+from file_wrapper import CombinedFileReader, load_mhd_header, FileHandleFactory, SubImage, CombinedFileWriter
 from json_reader import write_json
 
 
@@ -116,7 +116,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
     #                                       [0, image_size[2] - 1])
 
     input_file_base = os.path.splitext(input_file)[0]
-    input_combined = CombinedFile(input_file_base, original_file_list, file_factory, None)
+    input_combined = CombinedFileReader(input_file_base, original_file_list, file_factory)
 
     # Assemble descriptor list for output files
     output_descriptors = []
@@ -131,12 +131,10 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
         ranges_to_write.append(subimage_range)
         index += 1
 
-    for output_descriptor in output_descriptors:
-        subimage_range = output_descriptor["ranges"]
-        output_combined = SubImage(filename_out_base, output_descriptor, file_factory, header)
-        write_file_range_to_file(input_combined, output_combined, subimage_range)
-        output_combined.close()
+    output_combined = CombinedFileWriter(filename_out_base, output_descriptors, file_factory, header)
+    output_combined.write_image_file(input_combined)
 
+    output_combined.close()
     input_combined.close()
 
     descriptor["split_files"] = output_descriptors
@@ -154,8 +152,6 @@ def convert_to_array(scalar_or_list, parameter_name, num_dims):
         raise ValueError('The ' + parameter_name + 'parameter must be a scalar, or a list containing one entry for '
                                                    'each image dimension')
     return array
-
-
 
 
 class FileDescriptor:

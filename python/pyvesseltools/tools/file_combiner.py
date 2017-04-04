@@ -12,8 +12,7 @@ import os
 import sys
 
 import file_splitter
-from file_splitter import write_file_range_to_file
-from file_wrapper import FileHandleFactory, SubImage
+from file_wrapper import FileHandleFactory, CombinedFileWriter
 from json_reader import read_json
 
 
@@ -38,10 +37,10 @@ def combine_file(input_file_base, descriptor_filename, filename_out_base, file_f
     else:
         [original_header, input_file_list] = generate_header_from_descriptor_file(descriptor_filename)
 
-    input_combined = file_splitter.CombinedFile(input_file_base, input_file_list, file_factory, None)
+    input_combined = file_splitter.CombinedFileReader(input_file_base, input_file_list, file_factory)
 
     # Load in all descriptors for all files. We don't assume they are in order; we will use the index to order them
-    descriptors = sorted(input_file_list, key=lambda k: k['index'])
+    # input_descriptors = sorted(input_file_list, key=lambda k: k['index'])
 
     output_image_size = original_header["DimSize"]
     descriptor_out = {}
@@ -52,22 +51,10 @@ def combine_file(input_file_base, descriptor_filename, filename_out_base, file_f
                                 [0, output_image_size[1] - 1, 0, 0],
                                 [0, output_image_size[2] - 1, 0, 0]]
 
-    output_combined = SubImage(filename_out_base, descriptor_out, file_factory, original_header)
-    num_descriptors = len(descriptors)
-    for file_index in range(0, num_descriptors):
-        output_ranges = descriptors[file_index]["ranges"]
-        output_ranges[0][0] = output_ranges[0][0] + output_ranges[0][2]
-        output_ranges[0][1] = output_ranges[0][1] - output_ranges[0][3]
+    output_combined = CombinedFileWriter(filename_out_base, [descriptor_out], file_factory, original_header)
+    output_combined.write_image_file(input_combined)
 
-        output_ranges[1][0] = output_ranges[1][0] + output_ranges[1][2]
-        output_ranges[1][1] = output_ranges[1][1] - output_ranges[1][3]
-
-        output_ranges[2][0] = output_ranges[2][0] + output_ranges[2][2]
-        output_ranges[2][1] = output_ranges[2][1] - output_ranges[2][3]
-
-        write_file_range_to_file(input_combined, output_combined, output_ranges)
-
-        input_combined.close()
+    input_combined.close()
     output_combined.close()
 
 

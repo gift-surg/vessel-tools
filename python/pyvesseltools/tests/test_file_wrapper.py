@@ -54,14 +54,14 @@ class TestFileWrapper(unittest.TestCase):
         self.assertEqual(HugeFileStreamer._get_linear_byte_offset([55, 301, 999], 7, [14, 208, 88]), (14+208*55+88*55*301)*7)
 
     def test_get_bytes_per_voxel(self):
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_CHAR'), 1)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_UCHAR'), 1)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_INT'), 4)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_UINT'), 4)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_SHORT'), 2)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_USHORT'), 2)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_FLOAT'), 4)
-        self.assertEquals(file_wrapper.get_bytes_per_voxel('MET_DOUBLE'), 8)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_CHAR'), 1)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_UCHAR'), 1)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_INT'), 4)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_UINT'), 4)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_SHORT'), 2)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_USHORT'), 2)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_FLOAT'), 4)
+        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_DOUBLE'), 8)
 
     @parameterized.expand([
         [[2, 3, 8], 4, [1, 2, 3], 2],
