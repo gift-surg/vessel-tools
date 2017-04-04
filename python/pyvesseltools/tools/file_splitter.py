@@ -12,7 +12,7 @@ import os
 import sys
 from math import ceil
 
-from file_wrapper import load_mhd_header, FileHandleFactory, write_files
+from file_wrapper import load_mhd_header, FileHandleFactory, write_files, generate_input_descriptors
 from json_reader import write_json
 
 
@@ -92,17 +92,6 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
     write_descriptor_file(descriptors_in, descriptors_out, filename_out_base)
 
-
-def generate_input_descriptors(input_file_base, start_index):
-    header_filename = input_file_base + '.mhd'
-    header = load_mhd_header(header_filename)
-    image_size = header["DimSize"]
-    descriptors_in = []
-    original_file_descriptor = {"filename": header_filename,
-                                "ranges": [[0, image_size[0] - 1, 0, 0], [0, image_size[1] - 1, 0, 0],
-                                           [0, image_size[2] - 1, 0, 0]], "suffix": "", "index": 0}
-    descriptors_in.append(original_file_descriptor)
-    return header, descriptors_in
 
 
 def write_descriptor_file(descriptors_in, descriptors_out, filename_out_base):

@@ -365,6 +365,68 @@ def save_mhd_header(filename, metadata):
     f.close()
 
 
+def generate_input_descriptors(input_file_base, start_index):
+    descriptors = []
+
+    if start_index is None:
+        # If no start index is specified, load a single header file
+        header_filename = input_file_base + '.mhd'
+        combined_header = load_mhd_header(header_filename)
+        current_image_size = combined_header["DimSize"]
+        current_ranges = [[0, current_image_size[0] - 1, 0, 0],
+                          [0, current_image_size[1] - 1, 0, 0],
+                          [0, current_image_size[2] - 1, 0, 0]]
+
+        # Create a descriptor for this subimage
+        descriptor = {"index": 0, "suffix": "", "filename": header_filename, "ranges": current_ranges}
+        descriptors.append(descriptor)
+        return combined_header, descriptors
+
+    else:
+        # Load a series of files starting with the specified prefix
+        file_index = start_index
+        suffix = str(file_index)
+        header_filename = input_file_base + suffix + '.mhd'
+
+        if not os.path.isfile(header_filename):
+            raise ValueError('No file series found starting with ' + header_filename)
+
+        current_ranges = None
+        combined_header = None
+        full_image_size = None
+        while True:
+            suffix = str(file_index)
+            header_filename = input_file_base + suffix + '.mhd'
+            if not os.path.isfile(header_filename):
+                return combined_header, descriptors
+            current_header = load_mhd_header(header_filename)
+            current_image_size = current_header["DimSize"]
+            if not current_ranges:
+                full_image_size = copy.deepcopy(current_image_size)
+                combined_header = copy.deepcopy(current_header)
+                current_ranges = [[0, current_image_size[0] - 1, 0, 0],
+                                  [0, current_image_size[1] - 1, 0, 0],
+                                  [0, current_image_size[2] - 1, 0, 0]]
+            else:
+                if not current_image_size[0] == full_image_size[0]:
+                    raise ValueError('When loading without a descriptor file, the first dimension of each file must match')
+                if not current_image_size[1] == full_image_size[1]:
+                    raise ValueError('When loading without a descriptor file, the second dimension of each file must match')
+                full_image_size[2] = full_image_size[2] + current_image_size[2]
+                current_ranges[2][0] = current_ranges[2][1] + 1
+                current_ranges[2][1] = current_ranges[2][1] + current_image_size[2]
+
+            # Update the combined image size
+            combined_header["DimSize"] = full_image_size
+
+            # Create a descriptor for this subimage
+            ranges_to_write = copy.deepcopy(current_ranges)
+            descriptor = {"index": file_index, "suffix": suffix, "filename": header_filename, "ranges": ranges_to_write}
+            descriptors.append(descriptor)
+
+            file_index += 1
+
+
 def get_default_metadata():
     """Return an OrderedDict containing default mhd file metadata"""
 
