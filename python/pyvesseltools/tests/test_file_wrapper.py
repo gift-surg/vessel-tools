@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 
+import array
 from nose_parameterized import parameterized
 
 import file_wrapper
@@ -38,6 +39,12 @@ class FakeFile:
 
     def read(self, num_bytes):
         return self.data[slice(self.data_pointer, self.data_pointer + math.floor(num_bytes/self.bytes_per_voxel))]
+
+    def write(self, bytes_to_write):
+        num_voxels = math.floor(len(bytes_to_write)/self.bytes_per_voxel)
+        for index in range(0, num_voxels):
+            self.data[self.data_pointer + index] = bytes_to_write[index * self.bytes_per_voxel]
+        return len(bytes_to_write)
 
     def initialise(self, filename, mode):
         if not self.closed:
@@ -123,27 +130,53 @@ class TestHugeFileStreamer(unittest.TestCase):
         [[154, 141, 183], 4, [13, 12, 11], 30],
     ])
     def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
-        fake_file_factory = FakeFileHandleFactory(FakeFile(range(0, image_size[0]*image_size[1]*image_size[2]-1), bytes_per_voxel))
+        fake_file_factory = FakeFileHandleFactory(FakeFile(list(range(0, image_size[0]*image_size[1]*image_size[2]-1)), bytes_per_voxel))
         wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory, 'rb')
         file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel)
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
         end = start + num_voxels_to_read
-        expected = range(start, end)
-        self.assertEquals(file_streamer.read_image_stream(start_coords, num_voxels_to_read), expected)
+        expected = list(range(start, end))
+        self.assertEqual(file_streamer.read_image_stream(start_coords, num_voxels_to_read), expected)
+
+    @parameterized.expand([
+        [[2, 3, 8], 4, [1, 2, 3], 2],
+        [[101, 222, 4], 4, [1, 1, 1], 10],
+        [[154, 141, 183], 4, [13, 12, 11], 30],
+    ])
+    def test_write_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_write):
+        fake_file = FakeFile(list(range(0, image_size[0]*image_size[1]*image_size[2])), bytes_per_voxel)
+        fake_file_factory = FakeFileHandleFactory(fake_file)
+        wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory, 'rb')
+        file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel)
+        start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
+        end = start + num_voxels_to_write
+        to_write_voxels = [0] * num_voxels_to_write
+        for index in range(0, num_voxels_to_write):
+            to_write_voxels[index] = index + 12
+        to_write_bytes = [0] * num_voxels_to_write * bytes_per_voxel
+        for index in range(0, num_voxels_to_write):
+            to_write_bytes[index * bytes_per_voxel] = to_write_voxels[index]
+        to_write_bytes = array.array('B', to_write_bytes).tostring()
+        file_streamer.write_image_stream(start_coords, to_write_bytes)
+        expected = list(range(0, image_size[0]*image_size[1]*image_size[2]))
+        for index in range(0, num_voxels_to_write):
+            expected[index + start] = to_write_voxels[index]
+
+        self.assertEqual(expected, fake_file.data)
 
 
 class TestFileWrapper(unittest.TestCase):
     """Tests for FileWrapper"""
 
     def test_get_bytes_per_voxel(self):
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_CHAR'), 1)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_UCHAR'), 1)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_INT'), 4)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_UINT'), 4)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_SHORT'), 2)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_USHORT'), 2)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_FLOAT'), 4)
-        self.assertEquals(file_wrapper.compute_bytes_per_voxel('MET_DOUBLE'), 8)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_CHAR'), 1)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_UCHAR'), 1)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_INT'), 4)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_UINT'), 4)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_SHORT'), 2)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_USHORT'), 2)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_FLOAT'), 4)
+        self.assertEqual(file_wrapper.compute_bytes_per_voxel('MET_DOUBLE'), 8)
 
 
 if __name__ == '__main__':
