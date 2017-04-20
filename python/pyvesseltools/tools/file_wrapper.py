@@ -8,6 +8,8 @@ import copy
 import os
 from collections import OrderedDict
 
+import numpy as np
+
 
 def write_files(descriptors_in, descriptors_out, file_factory, original_header):
     input_combined = CombinedFileReader(descriptors_in, file_factory)
@@ -24,6 +26,7 @@ class CombinedFileWriter:
         self._subimages = []
         self._cached_last_subimage = None
         self._bytes_per_voxel = compute_bytes_per_voxel(header_template["ElementType"])
+        self._numpy_format = get_numpy_datatype(header_template["ElementType"], header_template["BinaryDataByteOrderMSB"])
         for descriptor in descriptors_sorted:
             self._subimages.append(SubImage(descriptor, file_factory, header_template))
 
@@ -55,15 +58,17 @@ class CombinedFileReader:
             self._subimages.append(SubImage(descriptor, file_factory, None))
 
     def read_image_stream(self, start_coords_global, num_voxels_to_read):
-        byte_stream = b''
+        byte_stream = None
         current_i_start = start_coords_global[0]
         while num_voxels_to_read > 0:
             current_start_coords = [current_i_start, start_coords_global[1], start_coords_global[2]]
             next_image = self._find_subimage(current_start_coords, True)
             next_byte_stream = next_image.read_image_stream(current_start_coords, num_voxels_to_read)
-            byte_stream += next_byte_stream
-            bytes_per_voxel = next_image.get_bytes_per_voxel()
-            num_voxels_read = round(len(next_byte_stream)/bytes_per_voxel)
+            if byte_stream is not None:
+                byte_stream = np.concatenate((byte_stream, next_byte_stream))
+            else:
+                byte_stream = next_byte_stream
+            num_voxels_read = round(len(next_byte_stream))
             num_voxels_to_read -= num_voxels_read
             current_i_start += num_voxels_read
         return byte_stream
@@ -204,8 +209,9 @@ class MetaIoFile:
         if not self._file_streamer:
             header = self._get_header()
             bytes_per_voxel = compute_bytes_per_voxel(header["ElementType"])
+            numpy_format = get_numpy_datatype(header["ElementType"], header["BinaryDataByteOrderMSB"])
             subimage_size = header["DimSize"]
-            self._file_streamer = HugeFileStreamer(self._get_file_wrapper(), subimage_size, bytes_per_voxel)
+            self._file_streamer = HugeFileStreamer(self._get_file_wrapper(), subimage_size, bytes_per_voxel, numpy_format)
         return self._file_streamer
 
     def close(self):
@@ -220,26 +226,29 @@ class MetaIoFile:
 class HugeFileStreamer:
     """A class to handle streaming of image data with arbitrarily large files"""
 
-    def __init__(self, file_wrapper, image_size, bytes_per_voxel):
+    def __init__(self, file_wrapper, image_size, bytes_per_voxel, numpy_format):
         self._bytes_per_voxel = bytes_per_voxel
         self._image_size = image_size
         self._file_wrapper = file_wrapper
+        self._numpy_format = numpy_format
 
     def read_image_stream(self, start_coords, num_voxels_to_read):
         """Reads a line of image data from a binary file at the specified image location"""
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
-        return self._file_wrapper.get_handle().read(num_voxels_to_read * self._bytes_per_voxel)
+
+        dt = np.dtype(self._numpy_format)
+        bytes_array = self._file_wrapper.get_handle().read(num_voxels_to_read * self._bytes_per_voxel)
+        return np.fromstring(bytes_array, dtype=dt)
+
 
     def write_image_stream(self, start_coords, image_line):
         """Writes a line of image data to a binary file at the specified image location"""
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
-        bytes_written = self._file_wrapper.get_handle().write(image_line)
-        if bytes_written != len(image_line):
-            raise ValueError('Unexpected number of bytes written')
+        self._file_wrapper.get_handle().write(image_line.tobytes()) #image_line.tofile(self._file_wrapper.get_handle(), '')
 
     @staticmethod
     def _get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
@@ -293,6 +302,9 @@ class HugeFileWrapper:
 class FileHandleFactory:
     @staticmethod
     def create_file_handle(filename, mode):
+        folder = os.path.dirname(filename)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
         return open(filename, mode)
 
 
@@ -335,6 +347,26 @@ def compute_bytes_per_voxel(element_type):
         'MET_DOUBLE': 8,
     }
     return switcher.get(element_type, 2)
+
+
+def get_numpy_datatype(element_type, byte_order_msb):
+    """Returns the numpy datatype corresponding to this ElementType"""
+
+    if byte_order_msb and (byte_order_msb or byte_order_msb == "True"):
+        prefix = '>'
+    else:
+        prefix = '<'
+    switcher = {
+        'MET_CHAR': 'i1',
+        'MET_UCHAR': 'u1',
+        'MET_SHORT': 'i4',
+        'MET_USHORT': 'u4',
+        'MET_INT': 'i8',
+        'MET_UINT': 'u8',
+        'MET_FLOAT': 'f4',
+        'MET_DOUBLE': 'f8',
+    }
+    return prefix + switcher.get(element_type, 2)
 
 
 def save_mhd_header(filename, metadata):

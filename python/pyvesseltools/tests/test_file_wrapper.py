@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 import math
 
-import array
+import os
+import struct
+
+import numpy as np
 from nose_parameterized import parameterized
+
+from pyfakefs import fake_filesystem_unittest
 
 import file_wrapper
 from file_wrapper import HugeFileStreamer
@@ -64,9 +69,18 @@ class FakeFile:
 
         self.closed = True
 
+    def flush(self):
+        pass
 
-class TestHugeFileWrapper(unittest.TestCase):
+
+class TestHugeFileWrapper(fake_filesystem_unittest.TestCase):
     """Tests for HugeFileWrapper"""
+
+    def setUp(self):
+        self.setUpPyfakefs()
+
+    def tearDown(self):
+        pass
 
     @parameterized.expand([
         [[2, 3, 8], 4, [1, 2, 3], 2],
@@ -114,8 +128,14 @@ class TestHugeFileWrapper(unittest.TestCase):
         self.assertEqual(fake_file.closed, True)
 
 
-class TestHugeFileStreamer(unittest.TestCase):
+class TestHugeFileStreamer(fake_filesystem_unittest.TestCase):
     """Tests for HugeFileStreamer"""
+
+    def setUp(self):
+        self.setUpPyfakefs()
+
+    def tearDown(self):
+        pass
 
     def test_get_linear_byte_offset(self):
         self.assertEqual(HugeFileStreamer._get_linear_byte_offset([11, 22, 33], 4, [1, 2, 3]), (1+2*11+3*11*22)*4)
@@ -130,13 +150,21 @@ class TestHugeFileStreamer(unittest.TestCase):
         [[154, 141, 183], 4, [13, 12, 11], 30],
     ])
     def test_read_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_read):
-        fake_file_factory = FakeFileHandleFactory(FakeFile(list(range(0, image_size[0]*image_size[1]*image_size[2]-1)), bytes_per_voxel))
-        wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory, 'rb')
-        file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel)
+
+        # Create a fake file
+        base_data_numpy = np.asarray(list(range(0, image_size[0]*image_size[1]*image_size[2])),
+                                     dtype=TestHugeFileStreamer.get_np_type(bytes_per_voxel))
+        TestHugeFileStreamer.write_to_fake_file('/test/test_read_image_stream.bin', base_data_numpy, bytes_per_voxel)
+        file_factory = file_wrapper.FileHandleFactory()
+        wrapper = file_wrapper.HugeFileWrapper('/test/test_read_image_stream.bin', file_factory, 'rb')
+        file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel,
+                                         TestHugeFileStreamer.get_np_type(bytes_per_voxel))
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
         end = start + num_voxels_to_read
         expected = list(range(start, end))
-        self.assertEqual(file_streamer.read_image_stream(start_coords, num_voxels_to_read), expected)
+        read_file_contents = file_streamer.read_image_stream(start_coords, num_voxels_to_read)
+        expected = np.asarray(expected, dtype=TestHugeFileStreamer.get_np_type(bytes_per_voxel))
+        self.assertTrue(np.array_equal(expected, read_file_contents))
 
     @parameterized.expand([
         [[2, 3, 8], 4, [1, 2, 3], 2],
@@ -144,25 +172,74 @@ class TestHugeFileStreamer(unittest.TestCase):
         [[154, 141, 183], 4, [13, 12, 11], 30],
     ])
     def test_write_image_stream(self, image_size, bytes_per_voxel, start_coords, num_voxels_to_write):
-        fake_file = FakeFile(list(range(0, image_size[0]*image_size[1]*image_size[2])), bytes_per_voxel)
-        fake_file_factory = FakeFileHandleFactory(fake_file)
-        wrapper = file_wrapper.HugeFileWrapper("abcde", fake_file_factory, 'rb')
-        file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel)
+        file_factory = file_wrapper.FileHandleFactory()
+
+        wrapper = file_wrapper.HugeFileWrapper('/test/test_write_image_stream.bin', file_factory, 'wb')
+        file_streamer = HugeFileStreamer(wrapper, image_size, bytes_per_voxel,
+                                         TestHugeFileStreamer.get_np_type(bytes_per_voxel))
         start = start_coords[0] + start_coords[1]*image_size[0] + start_coords[2]*image_size[0]*image_size[1]
-        end = start + num_voxels_to_write
+        # end = start + num_voxels_to_write
         to_write_voxels = [0] * num_voxels_to_write
         for index in range(0, num_voxels_to_write):
             to_write_voxels[index] = index + 12
-        to_write_bytes = [0] * num_voxels_to_write * bytes_per_voxel
-        for index in range(0, num_voxels_to_write):
-            to_write_bytes[index * bytes_per_voxel] = to_write_voxels[index]
-        to_write_bytes = array.array('B', to_write_bytes).tostring()
-        file_streamer.write_image_stream(start_coords, to_write_bytes)
+        base_data_numpy = np.asarray(list(range(0, image_size[0]*image_size[1]*image_size[2])),
+                                     dtype=TestHugeFileStreamer.get_np_type(bytes_per_voxel))
+        to_write_numpy = np.asarray(to_write_voxels, dtype=TestHugeFileStreamer.get_np_type(bytes_per_voxel))
+        file_streamer.write_image_stream([0, 0, 0], base_data_numpy)
+        file_streamer.write_image_stream(start_coords, to_write_numpy)
+        file_streamer.close()
+        read_file_contents = TestHugeFileStreamer.read_from_fake_file('/test/test_write_image_stream.bin', bytes_per_voxel)
         expected = list(range(0, image_size[0]*image_size[1]*image_size[2]))
         for index in range(0, num_voxels_to_write):
             expected[index + start] = to_write_voxels[index]
 
-        self.assertEqual(expected, fake_file.data)
+        expected = np.asarray(expected, dtype=TestHugeFileStreamer.get_np_type(bytes_per_voxel))
+        self.assertTrue(np.array_equal(expected, read_file_contents))
+
+    @staticmethod
+    def read_from_fake_file(file_name, bytes_per_voxel):
+        fmt = TestHugeFileStreamer.get_fmt_string(bytes_per_voxel)
+        with open(file_name, 'rb') as f:
+            size_bytes = os.fstat(f.fileno()).st_size
+            num_elements = round(size_bytes/bytes_per_voxel)
+            read_list = struct.unpack(fmt * num_elements, f.read())
+            return read_list
+
+    @staticmethod
+    def get_fmt_string(bytes_per_voxel):
+        if bytes_per_voxel == 1:
+            fmt = 'b'
+        elif bytes_per_voxel == 2:
+            fmt = 'h'
+        elif bytes_per_voxel == 4:
+            fmt = 'i'
+        elif bytes_per_voxel == 8:
+            fmt = 'q'
+        return fmt
+
+    @staticmethod
+    def get_np_type(bytes_per_voxel):
+        if bytes_per_voxel == 1:
+            return np.int8
+        elif bytes_per_voxel == 2:
+            return np.int16
+        elif bytes_per_voxel == 4:
+            return np.int32
+        elif bytes_per_voxel == 8:
+            return np.int64
+        return None
+
+    @staticmethod
+    def write_to_fake_file(file_name, array_to_write, bytes_per_voxel):
+
+        fmt = TestHugeFileStreamer.get_fmt_string(bytes_per_voxel)
+        folder = os.path.dirname(file_name)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        with open(file_name, 'wb') as f:
+            num_elements = len(array_to_write)
+            to_write_bytes = struct.pack(fmt * num_elements, *array_to_write)
+            f.write(to_write_bytes)
 
 
 class TestFileWrapper(unittest.TestCase):
