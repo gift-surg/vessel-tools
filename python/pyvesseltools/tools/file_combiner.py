@@ -12,6 +12,7 @@ import os
 import sys
 
 import file_splitter
+import file_wrapper
 from file_wrapper import FileHandleFactory, write_files, generate_input_descriptors
 from json_reader import read_json
 
@@ -58,7 +59,7 @@ def generate_header_from_descriptor_file(descriptor_filename):
     if not len(original_file_list) == 1:
         raise ValueError('This function only supports data derived from a single file')
     original_file_descriptor = original_file_list[0]
-    original_header = file_splitter.load_mhd_header(original_file_descriptor["filename"])
+    original_header = file_wrapper.load_mhd_header(original_file_descriptor["filename"])
     input_file_list = descriptor["split_files"]
     return original_header, input_file_list
 

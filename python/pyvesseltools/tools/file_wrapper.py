@@ -26,7 +26,8 @@ class CombinedFileWriter:
         self._subimages = []
         self._cached_last_subimage = None
         self._bytes_per_voxel = compute_bytes_per_voxel(header_template["ElementType"])
-        self._numpy_format = get_numpy_datatype(header_template["ElementType"], header_template["BinaryDataByteOrderMSB"])
+        self._numpy_format = get_numpy_datatype(header_template["ElementType"],
+                                                header_template["BinaryDataByteOrderMSB"])
         for descriptor in descriptors_sorted:
             self._subimages.append(SubImage(descriptor, file_factory, header_template))
 
@@ -211,7 +212,8 @@ class MetaIoFile:
             bytes_per_voxel = compute_bytes_per_voxel(header["ElementType"])
             numpy_format = get_numpy_datatype(header["ElementType"], header["BinaryDataByteOrderMSB"])
             subimage_size = header["DimSize"]
-            self._file_streamer = HugeFileStreamer(self._get_file_wrapper(), subimage_size, bytes_per_voxel, numpy_format)
+            self._file_streamer = HugeFileStreamer(self._get_file_wrapper(), subimage_size, bytes_per_voxel,
+                                                   numpy_format)
         return self._file_streamer
 
     def close(self):
@@ -242,13 +244,12 @@ class HugeFileStreamer:
         bytes_array = self._file_wrapper.get_handle().read(num_voxels_to_read * self._bytes_per_voxel)
         return np.fromstring(bytes_array, dtype=dt)
 
-
     def write_image_stream(self, start_coords, image_line):
         """Writes a line of image data to a binary file at the specified image location"""
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
-        self._file_wrapper.get_handle().write(image_line.tobytes()) #image_line.tofile(self._file_wrapper.get_handle(), '')
+        self._file_wrapper.get_handle().write(image_line.tobytes())
 
     @staticmethod
     def _get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
@@ -343,6 +344,10 @@ def compute_bytes_per_voxel(element_type):
         'MET_USHORT': 2,
         'MET_INT': 4,
         'MET_UINT': 4,
+        'MET_LONG': 4,
+        'MET_ULONG': 4,
+        'MET_LONG_LONG': 8,
+        'MET_ULONG_LONG': 8,
         'MET_FLOAT': 4,
         'MET_DOUBLE': 8,
     }
@@ -359,10 +364,14 @@ def get_numpy_datatype(element_type, byte_order_msb):
     switcher = {
         'MET_CHAR': 'i1',
         'MET_UCHAR': 'u1',
-        'MET_SHORT': 'i4',
-        'MET_USHORT': 'u4',
-        'MET_INT': 'i8',
-        'MET_UINT': 'u8',
+        'MET_SHORT': 'i2',
+        'MET_USHORT': 'u2',
+        'MET_INT': 'i4',
+        'MET_UINT': 'u4',
+        'MET_LONG': 'i4',
+        'MET_ULONG': 'u4',
+        'MET_LONG_LONG': 'i8',
+        'MET_ULONG_LONG': 'u8',
         'MET_FLOAT': 'f4',
         'MET_DOUBLE': 'f8',
     }
@@ -380,7 +389,7 @@ def save_mhd_header(filename, metadata):
             value = metadata[key]
         else:
             value = val
-        if value:
+        if value or value == 'False' or value == 0:
             value = str(value)
             value = value.replace("[", "").replace("]", "").replace(",", "")
             header += '%s = %s\n' % (key, value)
@@ -441,9 +450,11 @@ def generate_input_descriptors(input_file_base, start_index):
                                   [0, current_image_size[2] - 1, 0, 0]]
             else:
                 if not current_image_size[0] == full_image_size[0]:
-                    raise ValueError('When loading without a descriptor file, the first dimension of each file must match')
+                    raise ValueError('When loading without a descriptor file, the first dimension of each file must '
+                                     'match')
                 if not current_image_size[1] == full_image_size[1]:
-                    raise ValueError('When loading without a descriptor file, the second dimension of each file must match')
+                    raise ValueError('When loading without a descriptor file, the second dimension of each file must '
+                                     'match')
                 full_image_size[2] = full_image_size[2] + current_image_size[2]
                 current_ranges[2][0] = current_ranges[2][1] + 1
                 current_ranges[2][1] = current_ranges[2][1] + current_image_size[2]

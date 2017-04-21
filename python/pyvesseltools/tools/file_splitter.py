@@ -150,7 +150,7 @@ def main(args):
                         help="Number of voxels to overlap between outputs")
     parser.add_argument("-m", "--max", required=False, default="500", type=int,
                         help="Maximum number of voxels in each dimension")
-    parser.add_argument("-s", "--startindex", required=False, default="0", type=int,
+    parser.add_argument("-s", "--startindex", required=False, default=None, type=int,
                         help="Start index for filename suffix when loading a series of files")
 
     args = parser.parse_args(args)
