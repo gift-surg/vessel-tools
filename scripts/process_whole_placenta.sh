@@ -39,7 +39,7 @@ do
     threshold=254 #This parameter could be also be given as an input
     input=${data}/part${p}_segmented.mhd
     thick_img=${data}/part${p}_thickvolume.mhd
-    eval ${imagej_bin} --ij2 --run ${thickness_script} \'input_file=\"${input}\", threshold=\"${threshold}\", \"output_file=\"${thick_img}\"\'
+    eval ${imagej_bin} --ij2 --run ${thickness_script} \'input_file=\"${input}\", threshold=\"${threshold}\", output_file=\"${thick_img}\"\'
 
 # #4- File merging - Note: Temporary file is removed manually at the moment
 # sp=$1    #This is the spacing of the image that can be overwritten as many ImageJ tools tend to put everything to 1.0
