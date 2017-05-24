@@ -74,7 +74,7 @@ do
 #this should be useful to understand up to which level of thickness in the vessels you wanna
 #keep 
 # program="/home/mzuluaga/bin/roz_tools/bin/compute_statistics"
-# change_type="/home/mzuluaga/bin/roz_tools/bin/cardiovasc_changetype"
+change_type="/home/mzuluaga/bin/roz_tools/bin/cardiovasc_changetype"
 # for p in ${parts}
 # do
     # input=${data}/part${p}_segmented.mhd
