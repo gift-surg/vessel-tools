@@ -11,7 +11,7 @@ imagej_bin="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64" #ImageJ + options + scri
 repo_dir="/home/mzuluaga/Code/source/roz_tools"
 tools_dir="/home/mzuluaga/bin/roz_tools"
 input_dir="/home/mzuluaga/data/placenta"
-output_dir="/Users/tom/Scratch/placenta_processed"
+output_dir="/home/mzuluaga/data/placenta_processed"
 
 split_data_dir="${output_dir}/input_split"
 seg_with_histogram_bin="${tools_dir}/bin/seg_withhisto"
