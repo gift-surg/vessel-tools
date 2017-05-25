@@ -1,135 +1,78 @@
 #!/bin/bash
 #================================================================================
-# Example script for processing a whole raw placenta volume provided that
-# the volume has already been divided into parts.
-# pre: the volume has been splitted into parts
-# author: M.A. Zuluaga
+# Example script for processing a whole raw placenta volume
+# Authors: Tom Doel
+#          M.A. Zuluaga
+# Copyright UCL 2017
 #================================================================================
 #Example on how to call this: ./process_whole_placenta.sh 0.088767678
-#1- Setting up folders
-parts="0 1 2 3 4 5 6 7 8 9"
 
 imagej_bin="/home/mzuluaga/bin/Fiji.app/ImageJ-linux64" #ImageJ + options + script
 repo_dir="/home/mzuluaga/Code/source/roz_tools"
 tools_dir="/home/mzuluaga/bin/roz_tools"
-data="/home/mzuluaga/data/placenta"
+input_dir="/home/mzuluaga/data/placenta"
+output_dir="/Users/tom/Scratch/placenta_processed"
 
+split_data_dir="${output_dir}/input_split"
 seg_with_histogram_bin="${tools_dir}/bin/seg_withhisto"
+stats_bin="${tools_dir}/bin/compute_statistics"
+change_type_bin="${tools_dir}/cardiovasc_changetype"
+
+# ImageJ scripts
 skeleton_script="${repo_dir}/ImageJ/SkeletonScript.bsh"
 thickness_script="${repo_dir}/ImageJ/ThicknessScript.bsh"
 
-for p in ${parts}
+# Set up output folders
+mask_folder=${output_dir}/mask
+segmented_folder=${output_dir}/segmented
+centerline_folder=${output_dir}/centerline
+
+# Ensures folders exist
+mkdir -p $mask_folder
+mkdir -p $segmented_folder
+mkdir -p $centerline_folder
+
+shopt -s nullglob # Ensures the for loop does not process if there are no files
+for input_filename in ${split_data_dir}/*.mhd
 do
-    #1- Segmentation of each part using segmentation with histogram
-    input=${data}/part${p}.mhd
-    mask=${data}/part${p}_mask.mhd
-    cardiovasc_utils -i ${input} --otsu --inv --lconcom -o ${mask}
-    ${seg_with_histogram_bin}  -i  ${input} -o ${data}/part${p}_segmented.mhd -m  ${mask}
+    echo Processing ${input_filename}
+    base_filename=$(basename ${input_filename} .mhd)
 
-    #2- Extraction of the centerline (per subvolume)
-    #Important: This ImageJ plugin is strongly connected to the GUI. It fails if ran in headless mode (gets a Java exception, headless exception)
-    input=${data}/part${p}_segmented.mhd            #Binarised vessels
-    out_skeleton=${data}/part${p}_centerline.mhd    #Resulting centerline
-    general_stats_file=${data}/part${p}_stats_one.xls   #Global statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
-    detailed_stats_file=${data}/part${p}_stats_two.xls  #Detailed statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
-    eval ${imagej_bin} --ij2 --run ${skeleton_script} \'input_file=\"${input}\", output_file=\"${out_skeleton}\", output_statsOne=\"${general_stats_file}\", output_statsTwo=\"${detailed_stats_file}\"\'
+    # Create mask
+    mask_filename=${mask_folder}/${base_filename}_mask.mhd
+    echo cardiovasc_utils -i ${input_filename} --otsu --inv --lconcom -o ${mask_filename}
 
-    #3- Thickness estimation
-    #Important: This ImageJ plugin is strongly connected to the GUI. It fails if ran in headless mode (gets a Java exception, headless exception)
+    # Segmentation with histogram
+    segmented_filename=${segmented_folder}/${base_filename}_segmented.mhd
+    echo ${seg_with_histogram_bin}  -i  ${input_filename} -o ${segmented_filename} -m  ${mask_filename}
+
+    # Extract centerline and get statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
+    # Note: This ImageJ plugin is strongly connected to the GUI. It will return a Java Headless Exception if run in headless mode
+    centerline_filename=${centerline_folder}/${base_filename}_centerline.mhd
+    general_stats_filename=${centerline_folder}/${base_filename}_stats_one.xls
+    details_stats_filename=${centerline_folder}/${base_filename}_stats_two.xls
+    centerline_filename=${centerline_folder}/${base_filename}_centerline.mhd
+    echo eval ${imagej_bin} --ij2 --run ${skeleton_script} \'input_file=\"${segmented_filename}\", output_file=\"${centerline_filename}\", output_statsOne=\"${general_stats_filename}\", output_statsTwo=\"${detailed_stats_filename}\"\'
+
+    # Thickness estimation
+    # Note: This ImageJ plugin is strongly connected to the GUI. It will return a Java Headless Exception if run in headless mode
     threshold=254 #This parameter could be also be given as an input
-    input=${data}/part${p}_segmented.mhd
-    thick_img=${data}/part${p}_thickvolume.mhd
-    eval ${imagej_bin} --ij2 --run ${thickness_script} \'input_file=\"${input}\", threshold=\"${threshold}\", output_file=\"${thick_img}\"\'
+    thickness_filename=${centerline_folder}/${base_image_filename}_thickvolume.mhd
+    echo eval ${imagej_bin} --ij2 --run ${thickness_script} \'input_file=\"${segmented_filename}\", threshold=\"${threshold}\", output_file=\"${thickness_filename}\"\'
 
-# #4- File merging - Note: Temporary file is removed manually at the moment
-# sp=$1    #This is the spacing of the image that can be overwritten as many ImageJ tools tend to put everything to 1.0
-# merge_program="/home/mzuluaga/bin/roz_tools/bin/append_volumes"
-# parts="0 2 3 4 5 6 7 8 9"
-# for p in ${parts}
-# do
-#     result=${data}/result_segmented.mhd
-#     if [ ${p} == "0" ]
-#     then
-#         let p_next=${p}+1
-#         img_one=${data}/part${p}_segmented.mhd
-#         img_two=${data}/part${p_next}_segmented.mhd
-#     else
-#         let p_mod=${p}%2
-#         img_two=${data}/part${p}_segmented.mhd
-#         if [ ${p_mod} -eq 0 ]
-#         then
-#             img_one=${data}/result_segmented.mhd
-#             result=${data}/result_segmented2.mhd
-#         else
-#             img_one=${data}/result_segmented2.mhd
-#         fi
-#     fi
-#     ${merge_program} -i1 ${img_one} -i2 ${img_two} -o ${result} -v $sp
-# done
-#
-# rm -rf ${data}/result_segmented2.*
+    # Run statistics
+    #   Computes some basic statistics over the thickness image and displays them.
+    #   tThis should be useful to understand up to which level of thickness in the vessels you want to keep.
+    statsmask_filename=${centerline_folder}/${base_image_filename}_statsmask.mhd
+    echo cardiovasc_utils -i ${segmented_filename} --ith 254 255 -o statsmask_filename
+    echo ${change_type_bin} -i ${statsmask_filename} -o ${statsmask_filename}
+    echo ${stats_bin} -l ${statsmask_filename} -i ${thickness_filename}
 
-#5- Run statistics
-#Computes some basic statistics over the thickness image and displays them
-#this should be useful to understand up to which level of thickness in the vessels you wanna
-#keep 
-# program="/home/mzuluaga/bin/roz_tools/bin/compute_statistics"
-change_type="/home/mzuluaga/bin/roz_tools/bin/cardiovasc_changetype"
-# for p in ${parts}
-# do
-    # input=${data}/part${p}_segmented.mhd
-    # thick_img=${data}/part${p}_thickvolume.mhd
-    # mask=${data}/part${p}_tmp.mhd
-##  #  cardiovasc_utils -i ${input} --ith 254 255 -o ${mask}
-##   # ${change_type} -i ${mask} -o ${mask}
-##
-##    #${program} -l ${mask} -i ${thick_img}
-##    #rm -rf ${mask}
-##    #rm -rf ${data}/part${p}_tmp.raw
-# done
-
-
-# echo "***************************************** statistics are done ***************************************************"
-# echo "By now you should know what you wanna keep or not but, still the rest of the script will ran with some defaults"
-# echo "Re run with your specific values (might be different for each subvolume!)"
-
-    #6- Prune out smaller structures
-    input=${data}/part${p}_segmented.mhd
-    mask=${data}/final_${p}.mhd    
-    thick_img=${data}/part${p}_thickvolume.mhd	
-    thick_bin=${data}/part${p}_thickbin.mhd	
-    cardiovasc_utils -i ${thick_img} --ith 4 100 -o ${thick_bin} 
-    cardiovasc_utils -i ${input} --mul ${thick_bin} -o ${mask}	
-    ${change_type} -i ${mask} -o ${mask}	
-    rm -rf ${data}/part${p}_thickbin.*
-    
+    # Prune out smaller structures
+    thicknessbin_filename=${centerline_folder}/${base_image_filename}_thickbin.mhd
+    echo cardiovasc_utils -i ${thickness_filename} --ith 4 100 -o ${thicknessbin_filename}
+    thickmask_filename=${centerline_folder}/${base_image_filename}_thickmask.mhd
+    echo cardiovasc_utils -i ${segmented_filename} --mul ${thicknessbin_filename} -o ${thickmask_filename}
+    echo ${change_type} -i ${thickmask_filename} -o ${thickmask_filename}
+    echo rm thicknessbin_filename
 done
-
-# #7- File merging - Note: Temporary file is removed manually at the moment
-# sp=$1    #This is the spacing of the image that can be overwritten as many ImageJ tools tend to put everything to 1.0
-# merge_program="/home/mzuluaga/bin/roz_tools/bin/append_volumes"
-# parts="0 2 3 4 5 6 7 8 9"
-# for p in ${parts}
-# do
-#     result=${data}/result_segmented_prune.mhd
-#     if [ ${p} == "0" ]
-#     then
-#         let p_next=${p}+1
-#         img_one=${data}/final_${p}.mhd
-#         img_two=${data}/final_${p_next}.mhd
-#     else
-#         let p_mod=${p}%2
-#         img_two=${data}/final_${p}.mhd
-#         if [ ${p_mod} -eq 0 ]
-#         then
-#             img_one=${data}/result_segmented_prune.mhd
-#             result=${data}/result_segmented2.mhd
-#         else
-#             img_one=${data}/result_segmented2.mhd
-#         fi
-#     fi
-#     ${merge_program} -i1 ${img_one} -i2 ${img_two} -o ${result} -v $sp
-# done
-#
-# rm -rf ${data}/result_segmented2.*
-
