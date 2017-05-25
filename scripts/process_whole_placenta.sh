@@ -64,7 +64,7 @@ do
     #   Computes some basic statistics over the thickness image and displays them.
     #   This should be useful to understand up to which level of thickness in the vessels you want to keep.
     statsmask_filename=${centerline_folder}/${base_filename}_statsmask.mhd
-    cardiovasc_utils -i ${segmented_filename} --ith 254 255 -o statsmask_filename
+    cardiovasc_utils -i ${segmented_filename} --ith 254 255 -o ${statsmask_filename}
     ${change_type_bin} -i ${statsmask_filename} -o ${statsmask_filename}
     ${stats_bin} -l ${statsmask_filename} -i ${thickness_filename}
 
