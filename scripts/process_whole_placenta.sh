@@ -16,7 +16,7 @@ output_dir="/home/mzuluaga/data/placenta_processed"
 split_data_dir="${output_dir}/input_split"
 seg_with_histogram_bin="${tools_dir}/bin/seg_withhisto"
 stats_bin="${tools_dir}/bin/compute_statistics"
-change_type_bin="${tools_dir}/cardiovasc_changetype"
+change_type_bin="${tools_dir}/bin/cardiovasc_changetype"
 
 # ImageJ scripts
 skeleton_script="${repo_dir}/ImageJ/SkeletonScript.bsh"
@@ -50,7 +50,7 @@ do
     # Note: This ImageJ plugin is strongly connected to the GUI. It will return a Java Headless Exception if run in headless mode
     centerline_filename=${centerline_folder}/${base_filename}_centerline.mhd
     general_stats_filename=${centerline_folder}/${base_filename}_stats_one.xls
-    details_stats_filename=${centerline_folder}/${base_filename}_stats_two.xls
+    detailed_stats_filename=${centerline_folder}/${base_filename}_stats_two.xls
     centerline_filename=${centerline_folder}/${base_filename}_centerline.mhd
     eval ${imagej_bin} --ij2 --run ${skeleton_script} \'input_file=\"${segmented_filename}\", output_file=\"${centerline_filename}\", output_statsOne=\"${general_stats_filename}\", output_statsTwo=\"${detailed_stats_filename}\"\'
 
