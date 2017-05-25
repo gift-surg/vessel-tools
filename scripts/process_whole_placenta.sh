@@ -57,21 +57,21 @@ do
     # Thickness estimation
     # Note: This ImageJ plugin is strongly connected to the GUI. It will return a Java Headless Exception if run in headless mode
     threshold=254 #This parameter could be also be given as an input
-    thickness_filename=${centerline_folder}/${base_image_filename}_thickvolume.mhd
+    thickness_filename=${centerline_folder}/${base_filename}_thickvolume.mhd
     eval ${imagej_bin} --ij2 --run ${thickness_script} \'input_file=\"${segmented_filename}\", threshold=\"${threshold}\", output_file=\"${thickness_filename}\"\'
 
     # Run statistics
     #   Computes some basic statistics over the thickness image and displays them.
-    #   tThis should be useful to understand up to which level of thickness in the vessels you want to keep.
-    statsmask_filename=${centerline_folder}/${base_image_filename}_statsmask.mhd
+    #   This should be useful to understand up to which level of thickness in the vessels you want to keep.
+    statsmask_filename=${centerline_folder}/${base_filename}_statsmask.mhd
     cardiovasc_utils -i ${segmented_filename} --ith 254 255 -o statsmask_filename
     ${change_type_bin} -i ${statsmask_filename} -o ${statsmask_filename}
     ${stats_bin} -l ${statsmask_filename} -i ${thickness_filename}
 
     # Prune out smaller structures
-    thicknessbin_filename=${centerline_folder}/${base_image_filename}_thickbin.mhd
+    thicknessbin_filename=${centerline_folder}/${base_filename}_thickbin.mhd
     cardiovasc_utils -i ${thickness_filename} --ith 4 100 -o ${thicknessbin_filename}
-    thickmask_filename=${centerline_folder}/${base_image_filename}_thickmask.mhd
+    thickmask_filename=${centerline_folder}/${base_filename}_thickmask.mhd
     cardiovasc_utils -i ${segmented_filename} --mul ${thicknessbin_filename} -o ${thickmask_filename}
-    ${change_type} -i ${thickmask_filename} -o ${thickmask_filename}
+    ${change_type_bin} -i ${thickmask_filename} -o ${thickmask_filename}
 done
