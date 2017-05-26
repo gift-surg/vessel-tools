@@ -26,7 +26,7 @@ def load_descriptor(descriptor_filename):
     return data
 
 
-def combine_file(input_file_base, descriptor_filename, filename_out_base, start_index, file_factory):
+def combine_file(input_file_base, descriptor_filename, filename_out_base, start_index, output_type, file_factory):
     """Combines several overlapping files into one output file"""
 
     if not filename_out_base:
@@ -39,7 +39,7 @@ def combine_file(input_file_base, descriptor_filename, filename_out_base, start_
 
     descriptors_out = generate_output_descriptor_from_header(filename_out_base, original_header)
 
-    write_files(descriptors_in, descriptors_out, file_factory, original_header)
+    write_files(descriptors_in, descriptors_out, file_factory, original_header, output_type)
 
 
 def generate_output_descriptor_from_header(filename_out_base, original_header):
@@ -74,6 +74,8 @@ def main(args):
                         help="Name of descriptor file (.gift) which defines the file splitting")
     parser.add_argument("-s", "--startindex", required=False, default="0", type=int,
                         help="Start index for filename suffix when loading a series of files")
+    parser.add_argument("-t", "--type", required=False, default=None, type=str,
+                        help="Output data type (default: same as input file datatype)")
 
     args = parser.parse_args(args)
 
@@ -82,7 +84,7 @@ def main(args):
     if args.filename == '_no_filename_specified':
         raise ValueError('No filename was specified')
     else:
-        combine_file(args.filename, args.descriptor, args.out, args.startindex, FileHandleFactory())
+        combine_file(args.filename, args.descriptor, args.out, args.startindex, args.type, FileHandleFactory())
 
 
 if __name__ == '__main__':

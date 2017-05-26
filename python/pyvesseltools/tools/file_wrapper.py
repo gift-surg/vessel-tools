@@ -11,9 +11,9 @@ from collections import OrderedDict
 import numpy as np
 
 
-def write_files(descriptors_in, descriptors_out, file_factory, original_header):
+def write_files(descriptors_in, descriptors_out, file_factory, original_header, output_type):
     input_combined = CombinedFileReader(descriptors_in, file_factory)
-    output_combined = CombinedFileWriter(descriptors_out, file_factory, original_header)
+    output_combined = CombinedFileWriter(descriptors_out, file_factory, original_header, output_type)
     output_combined.write_image_file(input_combined)
 
     input_combined.close()
@@ -21,7 +21,12 @@ def write_files(descriptors_in, descriptors_out, file_factory, original_header):
 
 
 class CombinedFileWriter:
-    def __init__(self, descriptors, file_factory, header_template):
+    def __init__(self, descriptors, file_factory, header_template, element_type):
+        """A kind of virtual file for writing where the data are distributed across multiple real files."""
+
+        if element_type:
+            header_template = copy.deepcopy(header_template)
+            header_template["ElementType"] = element_type
         descriptors_sorted = sorted(descriptors, key=lambda k: k['index'])
         self._subimages = []
         self._cached_last_subimage = None
@@ -262,7 +267,9 @@ class HugeFileStreamer:
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
-        self._file_wrapper.get_handle().write(image_line.tobytes())
+
+        dt = np.dtype(self._numpy_format)
+        self._file_wrapper.get_handle().write(image_line.astype(dt).tobytes())
 
     @staticmethod
     def _get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):

@@ -77,7 +77,7 @@ def get_image_block_ranges(image_size, max_block_size, overlap_size):
     return block_ranges
 
 
-def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels, start_index, file_factory):
+def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_size_voxels, start_index, output_type, file_factory):
     """Saves the specified image file as a number of smaller files"""
 
     input_file_base = os.path.splitext(input_file)[0]
@@ -88,7 +88,7 @@ def split_file(input_file, filename_out_base, max_block_size_voxels, overlap_siz
 
     descriptors_out = generate_output_descriptors(filename_out_base, max_block_size_voxels, overlap_size_voxels, header)
 
-    write_files(descriptors_in, descriptors_out, file_factory, header)
+    write_files(descriptors_in, descriptors_out, file_factory, header, output_type)
 
     write_descriptor_file(descriptors_in, descriptors_out, filename_out_base)
 
@@ -152,6 +152,8 @@ def main(args):
                         help="Maximum number of voxels in each dimension")
     parser.add_argument("-s", "--startindex", required=False, default=None, type=int,
                         help="Start index for filename suffix when loading a series of files")
+    parser.add_argument("-t", "--type", required=False, default=None, type=str,
+                        help="Output data type (default: same as input file datatype)")
 
     args = parser.parse_args(args)
 
@@ -159,7 +161,7 @@ def main(args):
         raise ValueError('No filename was specified')
     else:
         assert sys.version_info >= (3, 0)
-        split_file(args.filename, args.out, args.max, args.overlap, args.startindex, FileHandleFactory())
+        split_file(args.filename, args.out, args.max, args.overlap, args.startindex, args.type, FileHandleFactory())
 
 
 if __name__ == '__main__':
