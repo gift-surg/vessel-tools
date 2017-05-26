@@ -51,6 +51,8 @@ class CombinedFileWriter:
 
 
 class CombinedFileReader:
+    """A kind of virtual file for reading where the data are distributed across multiple real files."""
+
     def __init__(self, descriptors, file_factory):
         descriptors_sorted = sorted(descriptors, key=lambda k: k['index'])
         self._subimages = []
@@ -158,6 +160,7 @@ class SubImage:
 
 
 class MetaIoFile:
+    """A class for reading or writing 3D imaging data to/from a MetaIO file pair (.mhd and .raw)."""
     def __init__(self, header_filename, file_factory, header_template):
         self._file_factory = file_factory
         self._header_filename = header_filename
@@ -181,25 +184,31 @@ class MetaIoFile:
             self._header = None
 
     def write_image_stream(self, start_coords, image_line):
-        """Writes a line of image data to a binary file at the specified image location"""
+        """Write consecutive voxels to the raw binary file."""
 
         return self._get_file_streamer().write_image_stream(start_coords, image_line)
 
     def read_image_stream(self, start_coords, num_voxels_to_read):
-        """Reads a line of image data from a binary file at the specified image location"""
+        """Read consecutive voxels of image data from the raw binary file starting at the specified coordinates."""
 
         return self._get_file_streamer().read_image_stream(start_coords, num_voxels_to_read)
 
     def get_bytes_per_voxel(self):
+        """Return the number of bytes used to represent a single voxel in this image."""
+
         header = self._get_header()
         return compute_bytes_per_voxel(header["ElementType"])
 
     def _get_header(self):
+        """Return an OrderedDict containing the MetaIO metaheader metadata for this image."""
+
         if not self._header:
             self._header = load_mhd_header(self._header_filename)
         return self._header
 
     def _get_file_wrapper(self):
+        """Return the HugeFileWrapper representing this image, creating it if it does not already exist."""
+
         if not self._file_wrapper:
             header = self._get_header()
             filename_raw = os.path.join(self._input_path, header["ElementDataFile"])
@@ -207,6 +216,8 @@ class MetaIoFile:
         return self._file_wrapper
 
     def _get_file_streamer(self):
+        """Return the HugeFileStreamer representing this image, creating it if it does not already exist."""
+
         if not self._file_streamer:
             header = self._get_header()
             bytes_per_voxel = compute_bytes_per_voxel(header["ElementType"])
@@ -217,6 +228,8 @@ class MetaIoFile:
         return self._file_streamer
 
     def close(self):
+        """Close the files associated with this image, if they are not already closed."""
+
         if self._file_streamer:
             self._file_streamer.close()
             self._file_streamer = None
@@ -235,7 +248,7 @@ class HugeFileStreamer:
         self._numpy_format = numpy_format
 
     def read_image_stream(self, start_coords, num_voxels_to_read):
-        """Reads a line of image data from a binary file at the specified image location"""
+        """Read a line of image data from a binary file at the specified image location"""
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
@@ -245,7 +258,7 @@ class HugeFileStreamer:
         return np.fromstring(bytes_array, dtype=dt)
 
     def write_image_stream(self, start_coords, image_line):
-        """Writes a line of image data to a binary file at the specified image location"""
+        """Write a line of image data to a binary file at the specified image location"""
 
         offset = self._get_linear_byte_offset(self._image_size, self._bytes_per_voxel, start_coords)
         self._file_wrapper.get_handle().seek(offset)
@@ -253,8 +266,10 @@ class HugeFileStreamer:
 
     @staticmethod
     def _get_linear_byte_offset(image_size, bytes_per_voxel, start_coords):
-        """For a stream of bytes representing a multi-dimensional image, returns the byte offset corresponding to the
-        point at the given coordinates """
+        """Return the byte offset corresponding to the point at the given coordinates. 
+        
+        Assumes you have a stream of bytes representing a multi-dimensional image, 
+        """
 
         offset = 0
         offset_multiple = bytes_per_voxel
@@ -264,11 +279,12 @@ class HugeFileStreamer:
         return offset
 
     def close(self):
+        """Close any files that have been opened."""
         self._file_wrapper.close()
 
 
 class HugeFileWrapper:
-    """A class to handle arbitrarily large files"""
+    """Read or write to arbitrarily large files."""
 
     def __init__(self, name, file_handle_factory, mode):
         self._file_handle_factory = file_handle_factory
@@ -310,7 +326,7 @@ class FileHandleFactory:
 
 
 def load_mhd_header(filename):
-    """Return an OrderedDict containing metadata loaded from an mhd file"""
+    """Return an OrderedDict containing metadata loaded from an mhd file."""
 
     metadata = OrderedDict()
 
