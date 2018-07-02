@@ -8,6 +8,16 @@ Scripts and utility programs for extracting and processing placental vasculature
  * Maria A Zuluaga
  * Tom Doel
 
+# Placental analysis
+
+Configure the paths in the bash script `scripts/analyse_placenta.sh` and run
+
+## Requirements
+ * CMake
+ * ITK
+ * Python
+ * ImageSplit (`pip install imagesplit`)
+ * Fiji
 
 # Build instructions for the C++ components
 
