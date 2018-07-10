@@ -9,10 +9,10 @@
 
 
 # Set location of vessel-tools git repository
-vessel_tools_source_dir="~/Code/vessel-tools"
+vessel_tools_source_dir="${HOME}/Code/vessel-tools"
 
 # Set location of vessel-tools build directory - this is the one you set in CMake before building vessel-tools
-vessel_tools_build_dir="~/Code/vessel-tools-build"
+vessel_tools_build_dir="${HOME}/Code/vessel-tools-build"
 
 # Set locaiton of ImageJ
 fiji_bin="/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx"
@@ -113,21 +113,21 @@ do
     base_filename=$(basename "${input_filename}" .mhd)
 
     # Create mask
-    mask_filename="${mask_folder}/${base_filename}_mask.mhd"
+    mask_filename="${mask_folder}/mask_${base_filename}.mhd"
     echo Writing mask file to:"${mask_filename}"
     "${cardiovasc_utils_bin}" -i "${input_filename}" --otsu --inv --lconcom -o "${mask_filename}"
 
     # Segmentation with histogram using the mask
-    segmented_filename="${segmented_folder}/${base_filename}_segmented.mhd"
+    segmented_filename="${segmented_folder}/segmented_${base_filename}.mhd"
     echo Writing segmentation file to:"${segmented_filename}"
     "${seg_with_histo_bin}" -i "${input_filename}" -o "${segmented_filename}" -m "${mask_filename}"
 
     # Extract centerline and get statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
     # Note: This ImageJ plugin currently does not work in headless mode
     # Note: This ImageJ plugin currently does not accept spaces in the output filename parameteres
-    centerline_filename="${centerline_folder}/${base_filename}_centerline.mhd"
-    general_stats_filename="${centerline_stats_folder}/${base_filename}_stats_one.xls"
-    detailed_stats_filename="${centerline_stats_folder}/${base_filename}_stats_two.xls"
+    centerline_filename="${centerline_folder}/centerline_${base_filename}.mhd"
+    general_stats_filename="${centerline_stats_folder}/centerline_stats_one_${base_filename}.xls"
+    detailed_stats_filename="${centerline_stats_folder}/centerline_stats_two_${base_filename}.xls"
     echo Writing centerline file to:"${centerline_filename}" and stats to "${general_stats_filename}" and "${detailed_stats_filename}"
     # Run the ImageJ script.
     "${fiji_bin}" --ij2 --run "${skeleton_script}" "input_file=\"${segmented_filename}\", output_file=\"${centerline_filename}\", output_statsOne=\"${general_stats_filename}\", output_statsTwo=\"${detailed_stats_filename}\""
@@ -161,4 +161,4 @@ echo ---RECOMBINING SPLIT FILES---
 
 
 # Merge mask components into single output file
-# imagesplit --input "${mask_folder}" --out "${recombined_folder}/${short_patient_id}_mask" --format mhd --descriptor "${descriptor_filename}"
+imagesplit --input "${mask_folder}" --out "${recombined_folder}/${short_patient_id}_mask" --format mhd --descriptor "${descriptor_filename}"
