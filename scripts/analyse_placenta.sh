@@ -46,11 +46,11 @@ thickness_script="${vessel_tools_source_dir}/ImageJ/ThicknessScript.bsh"
 split_data_dir="${output_dir}/split"
 mkdir -p "$split_data_dir"
 
-mask_folder="${output_dir}/mask"
-mkdir -p "$mask_folder"
+placental_mask_folder="${output_dir}/mask"
+mkdir -p "$placental_mask_folder"
 
-segmented_folder="${output_dir}/segmented"
-mkdir -p "$segmented_folder"
+vessel_segmentation_folder="${output_dir}/segmented"
+mkdir -p "$vessel_segmentation_folder"
 
 centerline_folder="${output_dir}/centerline"
 mkdir -p "$centerline_folder"
@@ -108,19 +108,18 @@ echo ---PROCESSING SPLIT FILES---
 shopt -s nullglob # Ensures the for loop does not process if there are no files
 for input_filename in "${split_data_dir}"/*.mhd
 do
-    echo ------------------------------
     echo Processing "${input_filename}"
     base_filename=$(basename "${input_filename}" .mhd)
 
     # Create mask
-    mask_filename="${mask_folder}/mask_${base_filename}.mhd"
-    echo Writing mask file to:"${mask_filename}"
-    "${cardiovasc_utils_bin}" -i "${input_filename}" --otsu --inv --lconcom -o "${mask_filename}"
+    placental_mask_filename="${placental_mask_folder}/mask_${base_filename}.mhd"
+    echo Writing placental mask file to:"${placental_mask_filename}"
+    "${cardiovasc_utils_bin}" -i "${input_filename}" --otsu --inv --lconcom -o "${placental_mask_filename}"
 
-    # Segmentation with histogram using the mask
-    segmented_filename="${segmented_folder}/segmented_${base_filename}.mhd"
-    echo Writing segmentation file to:"${segmented_filename}"
-    "${seg_with_histo_bin}" -i "${input_filename}" -o "${segmented_filename}" -m "${mask_filename}"
+    # Vessel segmentation with histogram using the mask
+    vessel_segmentation_filename="${vessel_segmentation_folder}/segmented_${base_filename}.mhd"
+    echo Writing vessel segmentation file to:"${vessel_segmentation_filename}"
+    "${seg_with_histo_bin}" -i "${input_filename}" -o "${vessel_segmentation_filename}" -m "${placental_mask_filename}"
 
     # Extract centerline and get statistics (see http://imagej.net/AnalyzeSkeleton#Table_of_results)
     # Note: This ImageJ plugin currently does not work in headless mode
@@ -160,5 +159,11 @@ done
 echo ---RECOMBINING SPLIT FILES---
 
 
-# Merge mask components into single output file
-imagesplit --input "${mask_folder}" --out "${recombined_folder}/${short_patient_id}_mask" --format mhd --descriptor "${descriptor_filename}"
+# Merge placental mask components into single output file
+imagesplit --input "${placental_mask_folder}/mask_${short_patient_id}_.mhd" --out "${recombined_folder}/${short_patient_id}_placenta" --format mhd --descriptor "${descriptor_filename}"
+
+# Merge vessel segmentation components into single output file
+imagesplit --input "${vessel_segmentation_folder}/segmented_${short_patient_id}_.mhd" --out "${recombined_folder}/${short_patient_id}_vessels" --format mhd --descriptor "${descriptor_filename}"
+
+# Merge vessel segmentation components into single output file
+imagesplit --input "${centerline_folder}/centerline_${short_patient_id}_.mhd" --out "${recombined_folder}/${short_patient_id}_centerline" --format mhd --descriptor "${descriptor_filename}"
