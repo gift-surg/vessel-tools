@@ -1,6 +1,6 @@
 # Vessel Tools
 
-Scripts and utility programs for extracting and processing placental vasculature
+Scripts and utility programs for extracting and processing vasculature
 
 Author: Maria A Zuluaga
 
@@ -10,17 +10,22 @@ This work was produced at [UCL][ucl] and was in part supported by the [GIFT-Surg
 
 
 # How to cite
-----------
 
 If you use this software, please cite the following papers as appropriate:
 
 ## Citations for vessel-tools
-    Zuluaga, M. A., Orkisz, M., Dong, P., Pacureanu, A., Gouttenoire, P. J., & Peyrin, F. (2014). Bone canalicular network segmentation in 3D nano-CT images through geodesic voting and image tessellation. Physics in Medicine & Biology, 59(9), 2155.
+    Zuluaga, M. A., Orkisz, M., Dong, P., Pacureanu, A., Gouttenoire, P. J., & Peyrin, F. (2014).
+    Bone canalicular network segmentation in 3D nano-CT images through geodesic voting and image tessellation.
+    Physics in Medicine & Biology, 59(9), 2155.
 
-    Zuluaga, M. A., Rodionov, R., Nowell, M., Achhala, S., Zombori, G., Mendelson, A. F., ... & Ourselin, S. (2015). Stability, structure and scale: improvements in multi-modal vessel extraction for SEEG trajectory planning. International journal of computer assisted radiology and surgery, 10(8), 1227-1237.
+    Zuluaga, M. A., Rodionov, R., Nowell, M., Achhala, S., Zombori, G., Mendelson, A. F., ... & Ourselin, S. (2015).
+    Stability, structure and scale: improvements in multi-modal vessel extraction for SEEG trajectory planning.
+    International journal of computer assisted radiology and surgery, 10(8), 1227-1237.
 
 ## Citations for cardiac-tools
-    Maria A. Zuluaga, M. Jorge Cardoso, Marc Modat, Sébastien Ourselin. Multi-atlas Propagation Whole Heart Segmentation from MRI and CTA Using a Local Normalised Correlation Coefficient Criterion. Functional Imaging and Modeling of the Heart, vol 7945, Lecture Notes in Computer Science, 174-181
+    Maria A. Zuluaga, M. Jorge Cardoso, Marc Modat, Sébastien Ourselin.
+    Multi-atlas Propagation Whole Heart Segmentation from MRI and CTA Using a Local Normalised Correlation Coefficient Criterion.
+    Functional Imaging and Modeling of the Heart, vol 7945, Lecture Notes in Computer Science, 174-181
 
 
 # Building the software
