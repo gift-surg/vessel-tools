@@ -9,7 +9,8 @@ Additional contributions: Tom Doel
 This work was produced at [UCL][ucl] and was in part supported by the [GIFT-Surg][giftsurg] project, [CMIC][cmic] and [TIG][tig].
 
 
-# How to cite
+# How to cite
+
 
 If you use this software, please cite the following papers as appropriate:
 
