@@ -2,22 +2,22 @@
 
 Scripts and utility programs for extracting and processing placental vasculature
 
+Author: Maria A Zuluaga
 
-# Authors
+Additional contributions: Tom Doel
 
- * Maria A Zuluaga
- * Tom Doel
+This work was produced at [UCL][ucl] and was in part supported by the [GIFT-Surg][giftsurg] project, [CMIC][cmic] and [TIG][tig].
 
-# Placental analysis
 
-Configure the paths in the bash script `scripts/analyse_placenta.sh` and run
 
-## Requirements
- * CMake
- * ITK
- * Python
+# Requirements
+ * CMake (3 or higher)
+ * ITK 4.8 (not tested with later versions)
+ * Python (to allow use of pip to install imagesplit)
  * ImageSplit (`pip install imagesplit`)
  * Fiji
+ * You must then build the C++ components as described below
+
 
 # Build instructions for the C++ components
 
@@ -53,8 +53,34 @@ The python package ImageSplit is used in some of the bash scripts. If you need i
 Note: if you are using the system default python (especially on MacOS), it is recommended that you do not modify the system installation. Instead, either install ImageSplit locally, or install an alternative version of Python, or use `virtualenv` to create your own python virtual environment.
 
 
+# Example: placental analysis
+
+An example placental analysis bash script is included here: `scripts/analyse_placenta.sh`
+This is based on analysing a microCT volume, but other data types can be used with appropriate modification.
+First you must install and compile the required software as described above, and configure the script for your paths.
+
+
+
 # Copyright and licensing
 
-At present this code is not released as open source. Therefore it should not be shared outside of UCL and collaborators.
+Copyright 2018 University College London.
 
-Copyright UCL 2017
+vessel-tools is released under the BSD-3 license. Please see the `license file`_ for details.
+
+
+Acknowledgements
+----------------
+
+This work was supported through an Innovative Engineering for Health award by the [Wellcome Trust][wellcometrust] [WT101957], the [Engineering and Physical Sciences Research Council (EPSRC)][epsrc] [NS/A000027/1] and a [National Institute for Health Research][nihr] Biomedical Research Centre [UCLH][uclh]/UCL High Impact Initiative.
+
+
+
+[tig]: http://cmictig.cs.ucl.ac.uk
+[giftsurg]: http://www.gift-surg.ac.uk
+[cmic]: http://cmic.cs.ucl.ac.uk
+[ucl]: http://www.ucl.ac.uk
+[nihr]: http://www.nihr.ac.uk/research
+[uclh]: http://www.uclh.nhs.uk
+[epsrc]: http://www.epsrc.ac.uk
+[wellcometrust]: http://www.wellcome.ac.uk
+[githubhome]: https://github.com/gift-surg/vessel-tools
