@@ -24,8 +24,8 @@ If you use this software, please cite the following papers as appropriate:
 
 ## Citations for cardiac-tools
     Maria A. Zuluaga, M. Jorge Cardoso, Marc Modat, Sébastien Ourselin.
-    Multi-atlas Propagation Whole Heart Segmentation from MRI and CTA Using a Local Normalised Correlation Coefficient Criterion.
-    Functional Imaging and Modeling of the Heart, vol 7945, Lecture Notes in Computer Science, 174-181
+    Multi-atlas Propagation Whole Heart Segmentation from MRI and CTA Using a Local Normalised Correlation Coefficient
+    Criterion. Functional Imaging and Modeling of the Heart, vol 7945, Lecture Notes in Computer Science, 174-181
 
 
 # Building the software
