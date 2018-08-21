@@ -9,8 +9,23 @@ Additional contributions: Tom Doel
 This work was produced at [UCL][ucl] and was in part supported by the [GIFT-Surg][giftsurg] project, [CMIC][cmic] and [TIG][tig].
 
 
+# How to cite
+----------
 
-# Requirements
+If you use this software, please cite the following papers as appropriate:
+
+## Citations for vessel-tools
+    Zuluaga, M. A., Orkisz, M., Dong, P., Pacureanu, A., Gouttenoire, P. J., & Peyrin, F. (2014). Bone canalicular network segmentation in 3D nano-CT images through geodesic voting and image tessellation. Physics in Medicine & Biology, 59(9), 2155.
+
+    Zuluaga, M. A., Rodionov, R., Nowell, M., Achhala, S., Zombori, G., Mendelson, A. F., ... & Ourselin, S. (2015). Stability, structure and scale: improvements in multi-modal vessel extraction for SEEG trajectory planning. International journal of computer assisted radiology and surgery, 10(8), 1227-1237.
+
+## Citations for cardiac-tools
+    Maria A. Zuluaga, M. Jorge Cardoso, Marc Modat, Sébastien Ourselin. Multi-atlas Propagation Whole Heart Segmentation from MRI and CTA Using a Local Normalised Correlation Coefficient Criterion. Functional Imaging and Modeling of the Heart, vol 7945, Lecture Notes in Computer Science, 174-181
+
+
+# Building the software
+
+## Requirements
  * CMake (3 or higher)
  * ITK 4.8 (not tested with later versions)
  * Python (to allow use of pip to install imagesplit)
@@ -19,18 +34,10 @@ This work was produced at [UCL][ucl] and was in part supported by the [GIFT-Surg
  * You must then build the C++ components as described below
 
 
-# Build instructions for the C++ components
+## Build instructions for the C++ components
 
 The C++ components of the code should be built using CMake.
-
-## Requirements
-
- *	Cmake 3 or higher
- *	ITK 4.8
-
-## Building
-
-Use CMake to configure the project. Make a build directory in a different location to your source code and run the following, or else use `cmake-gui`.
+Use ccmake to configure the project. Make a build directory in a different location to your source code and run the following, or else use `cmake-gui`.
 
 ```
     mkdir vessel-tools-build
@@ -47,13 +54,20 @@ Then you can build the project using `make`:
 ```
 
 
-# Installing the python ImageSplit package
+## Installing the python ImageSplit package
 
 The python package ImageSplit is used in some of the bash scripts. If you need it, the easiest way is to install using `pip` (assuming you have Python installed).
 Note: if you are using the system default python (especially on MacOS), it is recommended that you do not modify the system installation. Instead, either install ImageSplit locally, or install an alternative version of Python, or use `virtualenv` to create your own python virtual environment.
 
+# Running the Software
 
-# Example: placental analysis
+The make process will create a number of executables which can be run from the command-line.
+Please refer to the codebase or help output of the commands for details of the options.
+
+There are also a number of bash scripts and Fiji scripts. You will need to modify these appropriately to suit your data.
+
+
+## Example script: placental analysis
 
 An example placental analysis bash script is included here: `scripts/analyse_placenta.sh`
 This is based on analysing a microCT volume, but other data types can be used with appropriate modification.
